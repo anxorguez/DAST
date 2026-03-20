@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DAST Executive Summary - {{ report.scan_id }}</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px; color: #1a1a1a; background: #fff; padding: 32px 48px;
+    }
+    h1 { font-size: 20px; color: #1a1a2e; margin-bottom: 4px; }
+    .subtitle { color: #777; font-size: 13px; margin-bottom: 32px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th { background: #1a1a2e; color: #fff; padding: 8px 12px; text-align: left; font-size: 12px; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e5e5e5; }
+    .CRITICAL { color: #c0392b; font-weight: 700; }
+    .HIGH     { color: #e67e22; font-weight: 700; }
+    .MEDIUM   { color: #c9910a; font-weight: 700; }
+    .LOW      { color: #2980b9; font-weight: 700; }
+    .INFO     { color: #7f8c8d; }
+  </style>
+</head>
+<body>
+  <h1>Executive Summary</h1>
+  <p class="subtitle">
+    Scan ID: {{ report.scan_id }} &mdash;
+    Target: {{ report.target_url }} &mdash;
+    Duration: {{ report.duration_seconds | round(2) }}s
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Severity</th><th>Count</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="CRITICAL">CRITICAL</td><td>{{ report.summary.get("CRITICAL", 0) }}</td></tr>
+      <tr><td class="HIGH">HIGH</td><td>{{ report.summary.get("HIGH", 0) }}</td></tr>
+      <tr><td class="MEDIUM">MEDIUM</td><td>{{ report.summary.get("MEDIUM", 0) }}</td></tr>
+      <tr><td class="LOW">LOW</td><td>{{ report.summary.get("LOW", 0) }}</td></tr>
+      <tr><td class="INFO">INFO</td><td>{{ report.summary.get("INFO", 0) }}</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th>Severity</th><th>Type</th><th>URL</th><th>Field</th><th>Score</th></tr>
+    </thead>
+    <tbody>
+      {% for f in report.findings | sort(attribute='cvss_score', reverse=True) %}
+      <tr>
+        <td class="{{ f.severity.value }}">{{ f.severity.value }}</td>
+        <td>{{ f.vuln_type.value }}</td>
+        <td>{{ f.target_url }}</td>
+        <td>{{ f.field_name }}</td>
+        <td>{{ f.cvss_score }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

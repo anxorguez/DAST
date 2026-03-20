@@ -1,0 +1,10 @@
+# Default scan profile
+# Balanced settings suitable for standard penetration testing.
+max_depth: 3
+max_pages: 100
+request_timeout: 30
+concurrent_pages: 5
+max_payloads_per_vector: 50
+headless: true
+follow_redirects: true
+payload_types: "sqli,xss,cmdi"

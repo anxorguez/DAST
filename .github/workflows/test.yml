@@ -1,0 +1,103 @@
+name: Test
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main", "develop"]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          playwright install chromium --with-deps
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --tb=short --cov=src --cov-report=xml
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  integration-tests:
+    name: Integration Tests (DVWA)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    services:
+      db:
+        image: mariadb:10.11
+        env:
+          MYSQL_ROOT_PASSWORD: dvwa_root
+          MYSQL_DATABASE: dvwa
+          MYSQL_USER: dvwa
+          MYSQL_PASSWORD: p@ssw0rd
+        options: >-
+          --health-cmd="healthcheck.sh --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      dvwa:
+        image: ghcr.io/digininja/dvwa:latest
+        env:
+          DB_SERVER: db
+          DB_DATABASE: dvwa
+          DB_USER: dvwa
+          DB_PASSWORD: p@ssw0rd
+          DVWA_NO_HTTPS: "true"
+        ports:
+          - 8080:80
+        options: >-
+          --health-cmd="curl -f http://localhost/login.php || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          playwright install chromium --with-deps
+
+      - name: Configure DVWA
+        run: |
+          curl -s -c /tmp/dvwa.cookies -b /tmp/dvwa.cookies \
+            -d "username=admin&password=password&Login=Login&user_token=" \
+            http://localhost:8080/login.php
+          curl -s -c /tmp/dvwa.cookies -b /tmp/dvwa.cookies \
+            http://localhost:8080/setup.php?setupDatabase=1
+
+      - name: Run integration tests
+        env:
+          INTEGRATION_TESTS: "1"
+        run: |
+          pytest tests/integration/test_pipeline_dvwa.py -v --tb=short

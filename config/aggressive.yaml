@@ -1,0 +1,10 @@
+# Aggressive scan profile
+# Deep crawl with maximum payload coverage. Expect higher noise and longer run times.
+max_depth: 5
+max_pages: 500
+request_timeout: 60
+concurrent_pages: 10
+max_payloads_per_vector: 200
+headless: true
+follow_redirects: true
+payload_types: "sqli,xss,cmdi"

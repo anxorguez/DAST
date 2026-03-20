@@ -1,0 +1,11 @@
+# Stealth scan profile
+# Minimal footprint with reduced concurrency and payload count.
+# Suitable for rate-limited or heavily monitored targets.
+max_depth: 2
+max_pages: 50
+request_timeout: 15
+concurrent_pages: 2
+max_payloads_per_vector: 20
+headless: true
+follow_redirects: true
+payload_types: "sqli,xss,cmdi"

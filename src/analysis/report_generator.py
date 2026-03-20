@@ -1,0 +1,225 @@
+"""Generates HTML, JSON, and SQLite reports from a completed ScanReport."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+
+import aiosqlite
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from loguru import logger
+
+from src.analysis.models import ScanReport, ValidatedFinding
+from src.core.config import Settings
+from src.core.exceptions import ReportError
+
+_TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
+
+# ---------------------------------------------------------------------------
+# SQLite schema
+# ---------------------------------------------------------------------------
+
+_CREATE_METADATA = """
+CREATE TABLE IF NOT EXISTS scan_metadata (
+    scan_id        TEXT PRIMARY KEY,
+    target_url     TEXT NOT NULL,
+    started_at     TEXT NOT NULL,
+    finished_at    TEXT NOT NULL,
+    pages_crawled  INTEGER DEFAULT 0,
+    vectors_found  INTEGER DEFAULT 0,
+    total_findings INTEGER DEFAULT 0
+);
+"""
+
+_CREATE_FINDINGS = """
+CREATE TABLE IF NOT EXISTS findings (
+    id               TEXT PRIMARY KEY,
+    scan_id          TEXT NOT NULL,
+    vuln_type        TEXT NOT NULL,
+    severity         TEXT NOT NULL,
+    cvss_score       REAL NOT NULL DEFAULT 0.0,
+    target_url       TEXT NOT NULL,
+    field_name       TEXT NOT NULL,
+    method           TEXT NOT NULL,
+    payload          TEXT NOT NULL,
+    evidence         TEXT NOT NULL,
+    response_snippet TEXT,
+    confidence       TEXT NOT NULL,
+    remediation      TEXT,
+    found_at         TEXT NOT NULL,
+    response_time_ms INTEGER DEFAULT 0,
+    FOREIGN KEY (scan_id) REFERENCES scan_metadata(scan_id)
+);
+"""
+
+
+class ReportGenerator:
+    """Writes findings.db, report.json, and report.html for a completed scan."""
+
+    def __init__(self, settings: Settings, scan_dir: Path) -> None:
+        self._settings = settings
+        self._scan_dir = scan_dir
+
+    async def generate(self, report: ScanReport) -> None:
+        """Persist all three report artefacts to disk.
+
+        Args:
+            report: The completed ScanReport produced by the pipeline.
+
+        Raises:
+            ReportError: If any artefact cannot be written.
+        """
+        try:
+            await self._write_sqlite(report)
+            self._write_json(report)
+            self._write_html(report)
+            logger.info(
+                "Reports written to {d}", d=str(self._scan_dir)
+            )
+        except Exception as exc:
+            raise ReportError(f"Report generation failed: {exc}") from exc
+
+    # -------------------------------------------------------------------
+    # SQLite
+    # -------------------------------------------------------------------
+
+    async def _write_sqlite(self, report: ScanReport) -> None:
+        db_path = self._scan_dir / "findings.db"
+        async with aiosqlite.connect(str(db_path)) as db:
+            await db.execute(_CREATE_METADATA)
+            await db.execute(_CREATE_FINDINGS)
+
+            await db.execute(
+                """INSERT OR REPLACE INTO scan_metadata
+                   (scan_id, target_url, started_at, finished_at,
+                    pages_crawled, vectors_found, total_findings)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    report.scan_id,
+                    report.target_url,
+                    report.started_at.isoformat(),
+                    report.finished_at.isoformat(),
+                    report.pages_crawled,
+                    report.vectors_found,
+                    len(report.findings),
+                ),
+            )
+
+            for finding in report.findings:
+                await db.execute(
+                    """INSERT OR REPLACE INTO findings
+                       (id, scan_id, vuln_type, severity, cvss_score, target_url,
+                        field_name, method, payload, evidence, response_snippet,
+                        confidence, remediation, found_at, response_time_ms)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    _finding_row(finding, report.scan_id),
+                )
+
+            await db.commit()
+        logger.debug("SQLite database written: {p}", p=str(db_path))
+
+    # -------------------------------------------------------------------
+    # JSON
+    # -------------------------------------------------------------------
+
+    def _write_json(self, report: ScanReport) -> None:
+        json_path = self._scan_dir / "report.json"
+        data = _report_to_dict(report)
+        with json_path.open("w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False, default=str)
+        logger.debug("JSON report written: {p}", p=str(json_path))
+
+    # -------------------------------------------------------------------
+    # HTML
+    # -------------------------------------------------------------------
+
+    def _write_html(self, report: ScanReport) -> None:
+        if not _TEMPLATES_DIR.is_dir():
+            raise ReportError(
+                f"Templates directory not found: {_TEMPLATES_DIR}"
+            )
+
+        env = Environment(
+            loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+            autoescape=select_autoescape(["html", "j2"]),
+        )
+        template = env.get_template("report.html.j2")
+        duration_secs = (report.finished_at - report.started_at).total_seconds()
+        rendered = template.render(
+            report=report,
+            generated_at=datetime.utcnow(),
+            duration_seconds=duration_secs,
+            scan_profile=self._settings.scan_profile,
+        )
+
+        html_path = self._scan_dir / "report.html"
+        with html_path.open("w", encoding="utf-8") as fh:
+            fh.write(rendered)
+        logger.debug("HTML report written: {p}", p=str(html_path))
+
+
+# ---------------------------------------------------------------------------
+# Serialisation helpers
+# ---------------------------------------------------------------------------
+
+
+def _finding_row(
+    finding: ValidatedFinding, scan_id: str
+) -> tuple[object, ...]:
+    raw = finding.raw
+    return (
+        finding.id,
+        scan_id,
+        raw.vuln_type.value,
+        finding.severity.value,
+        finding.cvss_score,
+        raw.vector.target_url,
+        raw.vector.field_name,
+        raw.vector.method,
+        raw.payload,
+        raw.evidence,
+        raw.response_snippet,
+        raw.confidence.value,
+        finding.remediation,
+        raw.found_at.isoformat(),
+        raw.response_time_ms,
+    )
+
+
+def _report_to_dict(report: ScanReport) -> dict[str, object]:
+    return {
+        "scan_id": report.scan_id,
+        "target_url": report.target_url,
+        "started_at": report.started_at.isoformat(),
+        "finished_at": report.finished_at.isoformat(),
+        "duration_seconds": (
+            report.finished_at - report.started_at
+        ).total_seconds(),
+        "pages_crawled": report.pages_crawled,
+        "vectors_found": report.vectors_found,
+        "total_findings": len(report.findings),
+        "summary": report.summary,
+        "findings": [_finding_to_dict(f) for f in report.findings],
+    }
+
+
+def _finding_to_dict(finding: ValidatedFinding) -> dict[str, object]:
+    raw = finding.raw
+    return {
+        "id": finding.id,
+        "severity": finding.severity.value,
+        "cvss_score": finding.cvss_score,
+        "vuln_type": raw.vuln_type.value,
+        "target_url": raw.vector.target_url,
+        "field_name": raw.vector.field_name,
+        "method": raw.vector.method,
+        "surface": raw.vector.surface.value,
+        "payload": raw.payload,
+        "evidence": raw.evidence,
+        "confidence": raw.confidence.value,
+        "remediation": finding.remediation,
+        "response_time_ms": raw.response_time_ms,
+        "found_at": raw.found_at.isoformat(),
+        "response_snippet": raw.response_snippet,
+    }

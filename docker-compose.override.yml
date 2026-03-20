@@ -1,0 +1,24 @@
+# docker-compose.override.yml
+# Local development overrides. This file is loaded automatically by
+# docker compose alongside docker-compose.yml. It is safe to modify
+# locally and should not be committed with sensitive values.
+name: dast
+
+services:
+
+  dast-app:
+    # Mount source code for live editing without rebuilding the image.
+    volumes:
+      - ./src:/app/src:ro
+      - ./payloads:/app/payloads:ro
+      - ./config:/app/config:ro
+      - ./templates:/app/templates:ro
+      - ./reports:/app/reports
+    # Override log level for local development.
+    environment:
+      LOG_LEVEL: DEBUG
+
+  dvwa:
+    # Expose an additional port for direct browser access during development.
+    ports:
+      - "8080:80"

