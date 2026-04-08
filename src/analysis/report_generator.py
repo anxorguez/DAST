@@ -34,21 +34,22 @@ CREATE TABLE IF NOT EXISTS scan_metadata (
 
 _CREATE_FINDINGS = """
 CREATE TABLE IF NOT EXISTS findings (
-    id               TEXT PRIMARY KEY,
-    scan_id          TEXT NOT NULL,
-    vuln_type        TEXT NOT NULL,
-    severity         TEXT NOT NULL,
-    cvss_score       REAL NOT NULL DEFAULT 0.0,
-    target_url       TEXT NOT NULL,
-    field_name       TEXT NOT NULL,
-    method           TEXT NOT NULL,
-    payload          TEXT NOT NULL,
-    evidence         TEXT NOT NULL,
-    response_snippet TEXT,
-    confidence       TEXT NOT NULL,
-    remediation      TEXT,
-    found_at         TEXT NOT NULL,
-    response_time_ms INTEGER DEFAULT 0,
+    id                  TEXT PRIMARY KEY,
+    scan_id             TEXT NOT NULL,
+    vuln_type           TEXT NOT NULL,
+    severity            TEXT NOT NULL,
+    cvss_score          REAL NOT NULL DEFAULT 0.0,
+    cvss_vector_string  TEXT NOT NULL DEFAULT '',
+    target_url          TEXT NOT NULL,
+    field_name          TEXT NOT NULL,
+    method              TEXT NOT NULL,
+    payload             TEXT NOT NULL,
+    evidence            TEXT NOT NULL,
+    response_snippet    TEXT,
+    confidence          TEXT NOT NULL,
+    remediation         TEXT,
+    found_at            TEXT NOT NULL,
+    response_time_ms    INTEGER DEFAULT 0,
     FOREIGN KEY (scan_id) REFERENCES scan_metadata(scan_id)
 );
 """
@@ -109,10 +110,11 @@ class ReportGenerator:
             for finding in report.findings:
                 await db.execute(
                     """INSERT OR REPLACE INTO findings
-                       (id, scan_id, vuln_type, severity, cvss_score, target_url,
-                        field_name, method, payload, evidence, response_snippet,
-                        confidence, remediation, found_at, response_time_ms)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (id, scan_id, vuln_type, severity, cvss_score, cvss_vector_string,
+                        target_url, field_name, method, payload, evidence,
+                        response_snippet, confidence, remediation, found_at,
+                        response_time_ms)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     _finding_row(finding, report.scan_id),
                 )
 
@@ -174,6 +176,7 @@ def _finding_row(
         raw.vuln_type.value,
         finding.severity.value,
         finding.cvss_score,
+        finding.cvss_vector_string,
         raw.vector.target_url,
         raw.vector.field_name,
         raw.vector.method,
@@ -210,6 +213,7 @@ def _finding_to_dict(finding: ValidatedFinding) -> dict[str, object]:
         "id": finding.id,
         "severity": finding.severity.value,
         "cvss_score": finding.cvss_score,
+        "cvss_vector_string": finding.cvss_vector_string,
         "vuln_type": raw.vuln_type.value,
         "target_url": raw.vector.target_url,
         "field_name": raw.vector.field_name,

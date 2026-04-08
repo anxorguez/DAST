@@ -74,6 +74,7 @@ class ValidatedFinding:
     raw: RawFinding
     severity: Severity = Severity.INFO
     cvss_score: float = 0.0
+    cvss_vector_string: str = ""
     remediation: str = ""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 

@@ -1,20 +1,20 @@
-"""Assigns CVSS-inspired severity and remediation advice to validated findings.
+"""Assigns CVSS 3.1 severity and remediation advice to validated findings.
 
-Severity rules are fixed (not heuristic) as defined in the design decisions:
-
-  - SQLi error-based or UNION-based  -> CRITICAL  (9.0)
-  - SQLi blind (boolean or time)     -> HIGH       (7.5)
-  - XSS stored                       -> HIGH       (7.0)
-  - XSS reflected or DOM-based       -> MEDIUM     (5.0)
-  - CMDi error-based                 -> CRITICAL   (9.5)
-  - CMDi time-based                  -> HIGH       (7.5)
-  - Any other finding                -> INFO       (0.0)
+Severity is derived from the calculated CVSS 3.1 Base Score using the
+standard numeric bands:
+  9.0–10.0 → CRITICAL
+  7.0–8.9  → HIGH
+  4.0–6.9  → MEDIUM
+  0.1–3.9  → LOW
+  0.0      → INFO
 """
 
 from __future__ import annotations
 
+from src.analysis.cvss import calculate_base_score, vector_to_string
+from src.analysis.cvss_mapper import map_finding_to_cvss
 from src.analysis.models import RawFinding, Severity, ValidatedFinding
-from src.vectors.models import SurfaceType, VulnType
+from src.vectors.models import VulnType
 
 # ---------------------------------------------------------------------------
 # Remediation advice strings (fixed per vulnerability type)
@@ -37,63 +37,67 @@ _REMEDIATION: dict[VulnType, str] = {
         "unavoidable, whitelist allowed characters and use parameterised "
         "shell argument construction."
     ),
+    VulnType.SSRF: (
+        "Validate and sanitise all user-supplied URLs before the server makes "
+        "outbound requests. Use an allowlist of permitted domains/IPs. Block "
+        "access to cloud metadata endpoints (169.254.169.254) and private IP "
+        "ranges (10.x, 172.16-31.x, 192.168.x). Disable HTTP redirects in "
+        "server-side HTTP clients."
+    ),
+    VulnType.XXE: (
+        "Disable XML external entity processing in all XML parsers. Set "
+        "FEATURE_EXTERNAL_GENERAL_ENTITIES and FEATURE_EXTERNAL_PARAMETER_ENTITIES "
+        "to false. Use safer data formats (JSON) where possible. Apply input "
+        "validation to reject DOCTYPE declarations."
+    ),
+    VulnType.DESERIALIZATION: (
+        "Avoid deserialising data from untrusted sources. Use integrity checks "
+        "(HMAC) before deserialisation. Prefer safe data formats (JSON/XML with "
+        "schema validation) over native serialisation. Run deserialisation in "
+        "sandboxed contexts with minimal permissions."
+    ),
+    VulnType.PATH_TRAVERSAL: (
+        "Validate all file path inputs against an allowlist of permitted paths. "
+        "Use a canonical path check (realpath/Path.resolve) and reject paths "
+        "outside the intended base directory. Never construct file paths by "
+        "concatenating user input."
+    ),
+    VulnType.OPEN_REDIRECT: (
+        "Validate redirect destinations against an allowlist of permitted URLs "
+        "or domains. Avoid passing user-supplied URLs directly to redirect "
+        "responses. If redirection is required, use an indirect reference map "
+        "with opaque tokens instead of raw URLs."
+    ),
 }
 
 
+def _severity_from_score(score: float) -> Severity:
+    """Map a CVSS 3.1 base score to a Severity enum value."""
+    if score >= 9.0:
+        return Severity.CRITICAL
+    if score >= 7.0:
+        return Severity.HIGH
+    if score >= 4.0:
+        return Severity.MEDIUM
+    if score > 0.0:
+        return Severity.LOW
+    return Severity.INFO
+
+
 class SeverityScorer:
-    """Assigns Severity, a CVSS-simplified score, and remediation text."""
+    """Assigns Severity, CVSS 3.1 score, vector string, and remediation text."""
 
     def score(self, findings: list[ValidatedFinding]) -> list[ValidatedFinding]:
-        """Mutate *findings* in-place by filling severity, cvss_score, and remediation.
+        """Mutate *findings* in-place by filling severity, cvss_score,
+        cvss_vector_string, and remediation.
 
         Returns the same list for chaining convenience.
         """
         for finding in findings:
-            finding.severity, finding.cvss_score = self._classify(finding.raw)
+            cvss_vec = map_finding_to_cvss(finding.raw)
+            base_score = calculate_base_score(cvss_vec)
+            finding.cvss_score = base_score
+            finding.cvss_vector_string = vector_to_string(cvss_vec)
+            finding.severity = _severity_from_score(base_score)
             finding.remediation = _REMEDIATION.get(finding.raw.vuln_type, "")
         return findings
-
-    # -------------------------------------------------------------------
-    # Classification logic
-    # -------------------------------------------------------------------
-
-    def _classify(self, raw: RawFinding) -> tuple[Severity, float]:
-        vt = raw.vuln_type
-        payload_lower = raw.payload.lower()
-
-        if vt == VulnType.SQLI:
-            return self._classify_sqli(payload_lower)
-
-        if vt == VulnType.XSS:
-            return self._classify_xss(raw)
-
-        if vt == VulnType.CMDI:
-            return self._classify_cmdi(payload_lower)
-
-        return Severity.INFO, 0.0
-
-    def _classify_sqli(self, payload_lower: str) -> tuple[Severity, float]:
-        # Time-based or boolean-based payloads -> HIGH
-        if any(
-            kw in payload_lower
-            for kw in ("sleep(", "waitfor delay", "pg_sleep(", "and 1=1", "and 1=2")
-        ):
-            return Severity.HIGH, 7.5
-        # UNION-based or anything that provoked an error -> CRITICAL
-        return Severity.CRITICAL, 9.0
-
-    def _classify_xss(self, raw: RawFinding) -> tuple[Severity, float]:
-        # Stored XSS is identified by the surface type set during second-pass.
-        if raw.vector.surface == SurfaceType.STORED:
-            return Severity.HIGH, 7.0
-        # Reflected and DOM-based.
-        return Severity.MEDIUM, 5.0
-
-    def _classify_cmdi(self, payload_lower: str) -> tuple[Severity, float]:
-        # Time-based payloads -> HIGH
-        if any(
-            kw in payload_lower for kw in ("sleep ", "ping -c", "ping -n")
-        ):
-            return Severity.HIGH, 7.5
-        # Error/output-based -> CRITICAL
-        return Severity.CRITICAL, 9.5
