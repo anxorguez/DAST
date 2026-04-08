@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from abc import ABC, abstractmethod
 
@@ -17,13 +18,39 @@ RETRY_COUNT = 3
 # Minimum number of successful detections out of RETRY_COUNT to confirm.
 CONFIRM_THRESHOLD = 2
 
+# Keywords that identify time-based payloads.  These must run sequentially
+# because parallel execution corrupts timing measurements.
+_TIME_BASED_KEYWORDS: tuple[str, ...] = (
+    "sleep(",
+    "waitfor delay",
+    "pg_sleep(",
+    "sleep ",
+    "ping -c",
+    "ping -n",
+)
+
+
+def _is_time_based(payload: str) -> bool:
+    """Return True if *payload* uses a time-based delay technique."""
+    lower = payload.lower()
+    return any(kw in lower for kw in _TIME_BASED_KEYWORDS)
+
 
 class BaseScanner(ABC):
-    """Abstract base for SQLi, XSS, and CMDi scanners.
+    """Abstract base for all vulnerability scanners.
 
     Subclasses implement ``_detect`` which is called up to RETRY_COUNT
     times per payload. The scanner only emits a finding when at least
     CONFIRM_THRESHOLD attempts succeed.
+
+    Concurrency model
+    -----------------
+    * Different payloads are tested concurrently, bounded by
+      *concurrent_payloads* from Settings.
+    * Time-based payloads run sequentially behind a dedicated lock to
+      avoid corrupting timing measurements.
+    * The retry loop (RETRY_COUNT attempts) within a single payload is
+      always sequential.
     """
 
     VULN_TYPE: VulnType  # Must be set by every concrete subclass.
@@ -31,35 +58,59 @@ class BaseScanner(ABC):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         self._settings = settings
         self._http = http_client
+        # Lock ensures time-based payloads don't run concurrently.
+        self._time_based_lock: asyncio.Lock = asyncio.Lock()
 
     # -------------------------------------------------------------------
     # Public interface
     # -------------------------------------------------------------------
 
     async def scan(
-        self, vector: AttackVector, payloads: list[str]
+        self,
+        vector: AttackVector,
+        payloads: list[str],
+        semaphore: asyncio.Semaphore | None = None,
     ) -> list[RawFinding]:
         """Scan *vector* with *payloads* and return confirmed findings.
 
-        For each payload, ``_detect`` is called RETRY_COUNT times. A
-        RawFinding is emitted only when at least CONFIRM_THRESHOLD of those
-        attempts return a Confidence value other than POSSIBLE.
+        Concurrent payloads are bounded by *concurrent_payloads* from
+        Settings (or the optional external *semaphore*).  Time-based
+        payloads bypass the pool and run behind a dedicated serial lock.
+
+        Args:
+            vector: The injection target.
+            payloads: Payload strings to test.
+            semaphore: Optional external semaphore (unused, kept for API
+                compatibility with the Fuzzer's vector-level semaphore).
+
+        Returns:
+            All confirmed RawFinding instances for this vector.
         """
+        max_concurrent = max(1, self._settings.concurrent_payloads)
+        payload_sem = asyncio.Semaphore(max_concurrent)
+
         findings: list[RawFinding] = []
+        findings_lock = asyncio.Lock()
 
-        for payload in payloads:
-            confirmed_hits: list[RawFinding] = []
+        rps = self._settings.requests_per_second
 
-            for _ in range(RETRY_COUNT):
-                hit = await self._detect(vector, payload)
-                if hit is not None:
-                    confirmed_hits.append(hit)
+        async def _scan_one(payload: str) -> None:
+            if _is_time_based(payload):
+                # Time-based payloads run serially to preserve timing accuracy.
+                async with self._time_based_lock:
+                    hits = await self._retry_detect(vector, payload)
+            else:
+                async with payload_sem:
+                    if rps > 0:
+                        await asyncio.sleep(1.0 / rps)
+                    hits = await self._retry_detect(vector, payload)
 
-            if len(confirmed_hits) >= CONFIRM_THRESHOLD:
-                # Emit all confirmed hits so the Validator can group them and
-                # apply its own confirmation threshold (2-of-N rule).
-                findings.extend(confirmed_hits)
+            if hits:
+                async with findings_lock:
+                    findings.extend(hits)
 
+        tasks = [asyncio.create_task(_scan_one(p)) for p in payloads]
+        await asyncio.gather(*tasks)
         return findings
 
     # -------------------------------------------------------------------
@@ -80,6 +131,19 @@ class BaseScanner(ABC):
     # -------------------------------------------------------------------
     # Shared helpers
     # -------------------------------------------------------------------
+
+    async def _retry_detect(
+        self, vector: AttackVector, payload: str
+    ) -> list[RawFinding]:
+        """Run _detect up to RETRY_COUNT times and return hits if ≥ CONFIRM_THRESHOLD."""
+        confirmed_hits: list[RawFinding] = []
+        for _ in range(RETRY_COUNT):
+            hit = await self._detect(vector, payload)
+            if hit is not None:
+                confirmed_hits.append(hit)
+        if len(confirmed_hits) >= CONFIRM_THRESHOLD:
+            return confirmed_hits
+        return []
 
     async def _send(
         self,

@@ -15,6 +15,11 @@ _VULN_DIR: dict[VulnType, str] = {
     VulnType.SQLI: "sqli",
     VulnType.XSS: "xss",
     VulnType.CMDI: "cmdi",
+    VulnType.SSRF: "ssrf",
+    VulnType.XXE: "xxe",
+    VulnType.DESERIALIZATION: "deserialization",
+    VulnType.PATH_TRAVERSAL: "path_traversal",
+    VulnType.OPEN_REDIRECT: "open_redirect",
 }
 
 
