@@ -5,7 +5,8 @@
 [![Docker Build](https://github.com/your-org/dast-framework/actions/workflows/docker-build.yml/badge.svg)](https://github.com/your-org/dast-framework/actions/workflows/docker-build.yml)
 
 A CLI-based Dynamic Application Security Testing framework that automatically detects
-SQL Injection, Cross-Site Scripting, and Command Injection vulnerabilities in web applications.
+eight classes of web vulnerabilities, including SQL Injection, XSS, Command Injection, SSRF,
+XXE, Insecure Deserialization, Path Traversal, and Open Redirect.
 
 ---
 
@@ -14,15 +15,16 @@ SQL Injection, Cross-Site Scripting, and Command Injection vulnerabilities in we
 1. [Overview](#overview)
 2. [Target Application](#target-application)
 3. [Architecture](#architecture)
-4. [Requirements](#requirements)
-5. [Quick Start](#quick-start)
-6. [Configuration](#configuration)
-7. [Output](#output)
-8. [Running Tests](#running-tests)
-9. [CI/CD](#cicd)
-10. [Security](#security)
-11. [Contributing](#contributing)
-12. [License](#license)
+4. [Vulnerability Classes](#vulnerability-classes)
+5. [Requirements](#requirements)
+6. [Quick Start](#quick-start)
+7. [Configuration](#configuration)
+8. [Output](#output)
+9. [Running Tests](#running-tests)
+10. [CI/CD](#cicd)
+11. [Security](#security)
+12. [Contributing](#contributing)
+13. [License](#license)
 
 ---
 
@@ -31,13 +33,20 @@ SQL Injection, Cross-Site Scripting, and Command Injection vulnerabilities in we
 DAST Framework is a Python-based security tool developed as a Master Final Project (TFM).
 It performs black-box injection testing on web applications by dynamically crawling the target,
 identifying injectable parameters, sending attack payloads, and generating a structured
-vulnerability report.
+vulnerability report with CVSS 3.1 scores.
 
 Supported vulnerability classes:
 
-- SQL Injection (error-based, blind boolean, time-based, UNION-based)
-- Cross-Site Scripting (reflected, DOM-based, stored with second-pass verification)
-- Command Injection (error-based, time-based)
+| Class | Techniques | CVSS 3.1 |
+|---|---|---|
+| SQL Injection | error-based, UNION-based, blind boolean, time-based | 9.1 / 3.7 |
+| Cross-Site Scripting | reflected, DOM-based, stored (second-pass) | 6.1 / 5.4 |
+| Command Injection | error-based, time-based | 9.8 |
+| SSRF | in-band: cloud metadata, response-size delta | 5.3 |
+| XXE | DTD file read, PHP wrappers, parser error detection | 8.2 |
+| Insecure Deserialization | Java / PHP / Python / .NET malformed objects | 9.8 |
+| Path Traversal | `../` sequences, URL-encoding bypasses, null-byte | 7.5 |
+| Open Redirect | Location header, meta-refresh, JS redirect | 6.1 |
 
 The tool has no graphical interface. All interaction is through the command line, and all
 output is written to the filesystem as HTML, JSON, and SQLite files.
@@ -84,26 +93,62 @@ URL target
 [Module 2 - Vector Identification]
    BeautifulSoup4 + lxml parse each page HTML.
    Extracts form fields, URL parameters, event handlers.
-   Deduplicates by (url, method, field_name).
+   Heuristics assign applicable VulnTypes per field (name, type, enctype,
+   default value). Deduplicates by (url, method, field_name).
    Output: list of AttackVector
    |
    v
-[Module 3 - Fuzzing Engine]
-   For each vector x each enabled vulnerability type:
-     SQLiScanner  - error patterns, time delta, UNION markers
-     XSSScanner   - payload reflection, DOM-based check
-     CMDiScanner  - OS output patterns, time delta
-   3 retries per payload. Findings confirmed at 2/3.
+[Module 3 - Fuzzing Engine]  ← CONCURRENT (asyncio.Semaphore)
+   CONCURRENT_VECTORS vectors scanned in parallel.
+   Per vector, CONCURRENT_PAYLOADS payloads tested concurrently.
+   Time-based payloads are always serialised (dedicated asyncio.Lock).
+   Optional rate limiting (REQUESTS_PER_SECOND > 0).
+   Scanners:
+     SQLiScanner           - error patterns, time delta, UNION markers
+     XSSScanner            - payload reflection, DOM-based check
+     CMDiScanner           - OS output patterns, time delta
+     SSRFScanner           - cloud metadata patterns, response-size delta
+     XXEScanner            - DTD entity resolution, parser errors
+     DeserializationScanner - exception patterns, HTTP 500 correlation
+     PathTraversalScanner  - system file content patterns, FS errors
+     OpenRedirectScanner   - Location header, meta-refresh, JS redirect
+   3 retries per payload. Finding confirmed at ≥2/3.
    After fuzzing: second crawl pass for stored XSS detection.
    Output: list of RawFinding
    |
    v
 [Module 4 - Analysis and Reporting]
    Validator deduplicates and applies confirmation threshold.
-   SeverityScorer assigns CRITICAL/HIGH/MEDIUM/LOW/INFO by fixed rules.
+   SeverityScorer: maps each finding → CVSSVector via cvss_mapper,
+     calculates CVSS 3.1 Base Score, derives severity from numeric bands.
    ReportGenerator writes findings.db (SQLite), report.json, report.html.
+   All outputs include cvss_vector_string (e.g. CVSS:3.1/AV:N/AC:L/...).
    Output: ScanReport + files in reports/<scan_id>/
 ```
+
+---
+
+## Vulnerability Classes
+
+| VulnType | Scanner | Detection technique | Typical CVSS |
+|---|---|---|---|
+| `sqli` | SQLiScanner | SQL error patterns, UNION marker, time-based delay | 9.1 / 3.7 |
+| `xss` | XSSScanner | Payload reflection (verbatim + partial), exec patterns | 6.1 / 5.4 |
+| `cmdi` | CMDiScanner | OS command output patterns, time-based delay | 9.8 |
+| `ssrf` | SSRFScanner | Cloud metadata content, response size difference | 5.3 |
+| `xxe` | XXEScanner | File content reflection, XML parser errors | 8.2 |
+| `deserialization` | DeserializationScanner | Deser exception messages, HTTP 500 + serialised payload | 9.8 |
+| `path_traversal` | PathTraversalScanner | `/etc/passwd` / `win.ini` content, FS error strings | 7.5 |
+| `open_redirect` | OpenRedirectScanner | 3xx Location header, meta-refresh, JS `window.location` | 6.1 |
+
+VulnType heuristics (field name → scanner):
+
+- **SSRF**: url, endpoint, api, webhook, proxy, fetch, load, src, href, callback
+- **Path Traversal**: file, filename, path, template, include, dir, download, read, load
+- **Open Redirect**: url, redirect, next, return, goto, target, destination, redir, continue
+- **CMDi**: cmd, command, exec, execute, shell, ping, host, ip, file, filename, path
+- **XXE**: only when form enctype is `application/xml` / `text/xml`
+- **Deserialization**: only when default field value resembles serialised data (base64/`O:`/`rO0AB`)
 
 ---
 
@@ -143,31 +188,45 @@ ls reports/
 
 All settings are read from environment variables (.env file or shell environment).
 
-| Variable                  | Default         | Description                                         |
-|---------------------------|-----------------|-----------------------------------------------------|
-| TARGET_URL                | http://dvwa     | URL of the application to scan                      |
-| SCAN_PROFILE              | default         | Scan profile: default, aggressive, stealth          |
-| OUTPUT_DIR                | /app/reports    | Output directory inside the container               |
-| LOG_LEVEL                 | INFO            | Log level: DEBUG, INFO, WARNING, ERROR              |
-| MAX_DEPTH                 | 3               | Maximum BFS crawling depth                          |
-| MAX_PAGES                 | 100             | Maximum number of pages to visit                    |
-| REQUEST_TIMEOUT           | 30              | HTTP request timeout in seconds                     |
-| CONCURRENT_PAGES          | 5               | Pages processed concurrently by Playwright          |
-| AUTH_ENABLED              | false           | Enable pre-scan form-based login                    |
-| AUTH_URL                  | (empty)         | Login form URL                                      |
-| AUTH_USERNAME             | (empty)         | Username to submit in the login form                |
-| AUTH_PASSWORD             | (empty)         | Password to submit in the login form                |
-| AUTH_USERNAME_FIELD       | username        | name attribute of the username input                |
-| AUTH_PASSWORD_FIELD       | password        | name attribute of the password input                |
-| AUTH_SUCCESS_URL          | (empty)         | URL to verify successful login redirect             |
-| PAYLOAD_TYPES             | sqli,xss,cmdi   | Comma-separated list of enabled vulnerability types |
-| MAX_PAYLOADS_PER_VECTOR   | 50              | Maximum payloads tested per attack vector           |
-| DVWA_SECURITY_LEVEL       | low             | DVWA security level for integration tests           |
-| DVWA_USERNAME             | admin           | DVWA login username                                 |
-| DVWA_PASSWORD             | password        | DVWA login password                                 |
+| Variable                  | Default                                      | Description                                         |
+|---------------------------|----------------------------------------------|-----------------------------------------------------|
+| TARGET_URL                | http://dvwa                                  | URL of the application to scan                      |
+| SCAN_PROFILE              | default                                      | Scan profile: default, aggressive, stealth          |
+| OUTPUT_DIR                | /app/reports                                 | Output directory inside the container               |
+| LOG_LEVEL                 | INFO                                         | Log level: DEBUG, INFO, WARNING, ERROR              |
+| MAX_DEPTH                 | 3                                            | Maximum BFS crawling depth                          |
+| MAX_PAGES                 | 100                                          | Maximum number of pages to visit                    |
+| REQUEST_TIMEOUT           | 30                                           | HTTP request timeout in seconds                     |
+| CONCURRENT_PAGES          | 5                                            | Pages processed concurrently by Playwright          |
+| AUTH_ENABLED              | false                                        | Enable pre-scan form-based login                    |
+| AUTH_URL                  | (empty)                                      | Login form URL                                      |
+| AUTH_USERNAME             | (empty)                                      | Username to submit in the login form                |
+| AUTH_PASSWORD             | (empty)                                      | Password to submit in the login form                |
+| AUTH_USERNAME_FIELD       | username                                     | name attribute of the username input                |
+| AUTH_PASSWORD_FIELD       | password                                     | name attribute of the password input                |
+| AUTH_SUCCESS_URL          | (empty)                                      | URL to verify successful login redirect             |
+| PAYLOAD_TYPES             | sqli,xss,cmdi,ssrf,xxe,deserialization,…     | Comma-separated list of enabled vulnerability types |
+| MAX_PAYLOADS_PER_VECTOR   | 50                                           | Maximum payloads tested per attack vector           |
+| CONCURRENT_VECTORS        | 5                                            | Number of vectors fuzzed concurrently               |
+| CONCURRENT_PAYLOADS       | 10                                           | Payloads tested in parallel per scanner             |
+| REQUESTS_PER_SECOND       | 0                                            | Rate limit (0 = unlimited)                          |
+| DVWA_SECURITY_LEVEL       | low                                          | DVWA security level for integration tests           |
+| DVWA_USERNAME             | admin                                        | DVWA login username                                 |
+| DVWA_PASSWORD             | password                                     | DVWA login password                                 |
 
 Scan profiles (config/default.yaml, config/aggressive.yaml, config/stealth.yaml)
 override these defaults. Profile values are in turn overridden by environment variables.
+
+### Scan Profile Comparison
+
+| Setting                 | default | aggressive | stealth |
+|-------------------------|---------|------------|---------|
+| max_depth               | 3       | 5          | 2       |
+| max_pages               | 100     | 500        | 50      |
+| max_payloads_per_vector | 50      | 200        | 20      |
+| concurrent_vectors      | 5       | 10         | 2       |
+| concurrent_payloads     | 10      | 20         | 3       |
+| requests_per_second     | 0       | 0          | 5       |
 
 ---
 
