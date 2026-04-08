@@ -48,8 +48,11 @@ class Settings(BaseSettings):
     auth_success_url: str = ""
 
     # --- Fuzzing ------------------------------------------------------
-    payload_types: str = "sqli,xss,cmdi"
+    payload_types: str = "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect"
     max_payloads_per_vector: int = 50
+    concurrent_vectors: int = 5    # Max vectors scanned in parallel
+    concurrent_payloads: int = 10  # Max payloads tested in parallel per scanner
+    requests_per_second: int = 0   # Rate limit (0 = unlimited)
 
     # --- Database -----------------------------------------------------
     db_path: str = ""

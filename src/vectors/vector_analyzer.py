@@ -2,11 +2,35 @@
 
 from __future__ import annotations
 
+import base64
+import re
 from urllib.parse import parse_qs, urlparse
 
 from loguru import logger
 
 from src.vectors.models import AttackVector, CrawledPage, SurfaceType, VulnType
+
+# Patterns that suggest a field value contains serialized data.
+_SERIALIZED_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"^rO0AB"),       # Java serialization base64 header
+    re.compile(r"^AAEAAAD"),     # .NET BinaryFormatter base64 header
+    re.compile(r"^O:\d+:"),      # PHP object serialization
+    re.compile(r"^a:\d+:\{"),    # PHP array serialization
+]
+
+
+def _looks_like_serialized(value: str) -> bool:
+    """Return True if *value* resembles serialized data."""
+    for pat in _SERIALIZED_PATTERNS:
+        if pat.search(value):
+            return True
+    try:
+        decoded = base64.b64decode(value + "==")
+        if decoded[:2] == b"\xac\xed":  # Java serialization magic
+            return True
+    except Exception:
+        pass
+    return False
 
 # ---------------------------------------------------------------------------
 # Priority heuristics
@@ -27,6 +51,34 @@ _CMDI_HINT_NAMES: frozenset[str] = frozenset(
     {
         "cmd", "command", "exec", "execute", "shell", "ping",
         "host", "ip", "file", "filename", "path",
+    }
+)
+
+# Field names that suggest server-side URL fetching — add SSRF.
+_SSRF_HINT_NAMES: frozenset[str] = frozenset(
+    {
+        "url", "endpoint", "api", "webhook", "proxy", "fetch",
+        "load", "src", "href", "callback", "target", "dest",
+        "destination", "image", "imageurl", "avatar", "icon",
+    }
+)
+
+# Field names that suggest file or path input — add Path Traversal.
+_PATH_TRAVERSAL_HINT_NAMES: frozenset[str] = frozenset(
+    {
+        "file", "filename", "path", "template", "include", "dir",
+        "download", "read", "load", "document", "resource", "page",
+        "view", "src", "folder", "location",
+    }
+)
+
+# Field names that suggest redirect target — add Open Redirect.
+_OPEN_REDIRECT_HINT_NAMES: frozenset[str] = frozenset(
+    {
+        "url", "redirect", "next", "return", "returnto", "goto",
+        "target", "destination", "redir", "continue", "forward",
+        "back", "ref", "referer", "return_url", "redirect_url",
+        "callback", "success_url", "cancel_url",
     }
 )
 
@@ -90,7 +142,10 @@ class VectorAnalyzer:
                             f"<form action='{form.action_url}' method='{form.method}'>"
                         ),
                         applicable_vulns=self._applicable_vulns(
-                            frm_field.name, frm_field.field_type
+                            frm_field.name,
+                            frm_field.field_type,
+                            default_value=frm_field.default_value,
+                            enctype=form.enctype,
                         ),
                         priority=self._priority(frm_field.name),
                         extra_params=extra,
@@ -121,18 +176,47 @@ class VectorAnalyzer:
 
         return vectors
 
-    def _applicable_vulns(self, field_name: str, field_type: str) -> list[VulnType]:
+    def _applicable_vulns(
+        self,
+        field_name: str,
+        field_type: str,
+        default_value: str | None = None,
+        enctype: str = "application/x-www-form-urlencoded",
+    ) -> list[VulnType]:
         """Determine which vulnerability types to test for this field."""
         lower = field_name.lower()
         vulns: list[VulnType] = [VulnType.SQLI, VulnType.XSS]
 
         # Hidden fields carry no visual output, so XSS is not meaningful.
         if field_type == "hidden":
-            return [VulnType.SQLI]
-
+            vulns = [VulnType.SQLI]
         # Add CMDi only when field name hints at OS-level execution.
         if any(kw in lower for kw in _CMDI_HINT_NAMES):
-            vulns.append(VulnType.CMDI)
+            if VulnType.CMDI not in vulns:
+                vulns.append(VulnType.CMDI)
+
+        # SSRF: field name suggests URL/endpoint input.
+        if any(kw in lower for kw in _SSRF_HINT_NAMES):
+            vulns.append(VulnType.SSRF)
+
+        # Path Traversal: field name suggests file/path input.
+        if any(kw in lower for kw in _PATH_TRAVERSAL_HINT_NAMES):
+            if VulnType.PATH_TRAVERSAL not in vulns:
+                vulns.append(VulnType.PATH_TRAVERSAL)
+
+        # Open Redirect: field name suggests redirect target.
+        if any(kw in lower for kw in _OPEN_REDIRECT_HINT_NAMES):
+            if VulnType.OPEN_REDIRECT not in vulns:
+                vulns.append(VulnType.OPEN_REDIRECT)
+
+        # XXE: only when the form enctype is XML or field appears to accept XML.
+        xml_enctypes = ("application/xml", "text/xml", "application/soap+xml")
+        if any(enc in enctype.lower() for enc in xml_enctypes):
+            vulns.append(VulnType.XXE)
+
+        # Deserialization: field default value looks like serialized data.
+        if default_value and _looks_like_serialized(default_value):
+            vulns.append(VulnType.DESERIALIZATION)
 
         return vulns
 

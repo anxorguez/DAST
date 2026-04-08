@@ -25,6 +25,7 @@ class SurfaceType(str, Enum):
     PATH_PARAM = "path_param"
     HTTP_HEADER = "http_header"
     JSON_BODY = "json_body"
+    XML_BODY = "xml_body"
     STORED = "stored"  # Synthetic surface used for stored-XSS second-pass findings
 
 
@@ -34,6 +35,11 @@ class VulnType(str, Enum):
     SQLI = "sqli"
     XSS = "xss"
     CMDI = "cmdi"
+    SSRF = "ssrf"
+    XXE = "xxe"
+    DESERIALIZATION = "deserialization"
+    PATH_TRAVERSAL = "path_traversal"
+    OPEN_REDIRECT = "open_redirect"
 
 
 # ---------------------------------------------------------------------------
