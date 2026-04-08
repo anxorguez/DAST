@@ -8,4 +8,7 @@ concurrent_pages: 2
 max_payloads_per_vector: 20
 headless: true
 follow_redirects: true
-payload_types: "sqli,xss,cmdi"
+payload_types: "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect"
+concurrent_vectors: 2
+concurrent_payloads: 3
+requests_per_second: 5
