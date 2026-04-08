@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import re
+import time
 from urllib.parse import urlparse
 
+import httpx
 from loguru import logger
 
 from src.analysis.models import Confidence, RawFinding
@@ -137,20 +139,18 @@ class OpenRedirectScanner(BaseScanner):
 
     async def _send_no_follow(
         self, vector: AttackVector, payload: str
-    ) -> tuple[object, int]:
+    ) -> tuple[httpx.Response, int]:
         """Send request without following redirects to capture the 3xx response."""
-        import time
-
         params = {**vector.extra_params, vector.field_name: payload}
 
         start = time.monotonic()
         if vector.method == "POST":
             response = await self._http.post_no_retry(
-                vector.target_url, data=params  # type: ignore[arg-type]
+                vector.target_url, data=params
             )
         else:
             response = await self._http.get_no_retry(
-                vector.target_url, params=params  # type: ignore[arg-type]
+                vector.target_url, params=params
             )
         elapsed_ms = int((time.monotonic() - start) * 1000)
         return response, elapsed_ms

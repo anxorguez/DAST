@@ -5,6 +5,7 @@ from __future__ import annotations
 import html as html_lib
 import re
 
+import httpx
 from loguru import logger
 
 from src.analysis.models import Confidence, RawFinding
@@ -83,11 +84,9 @@ class XSSScanner(BaseScanner):
         vector: AttackVector,
         payload: str,
         body: str,
-        response: "object",
+        response: httpx.Response,
         elapsed: int,
     ) -> RawFinding | None:
-        import httpx
-
         # Strategy 1: exact payload string appears verbatim in response body.
         if payload in body:
             # Verify it is not HTML-escaped — unescape and look for it again.
@@ -95,11 +94,11 @@ class XSSScanner(BaseScanner):
             if payload in unescaped_body:
                 confidence = self._assess_confidence(payload, body)
                 evidence = (
-                    f"XSS payload reflected verbatim in HTTP {response.status_code} "  # type: ignore[union-attr]
+                    f"XSS payload reflected verbatim in HTTP {response.status_code} "
                     f"response (unescaped)"
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed, confidence, evidence  # type: ignore[arg-type]
+                    vector, payload, response, elapsed, confidence, evidence
                 )
 
         # Strategy 2: key structural parts of the payload appear unescaped.
@@ -110,7 +109,7 @@ class XSSScanner(BaseScanner):
                     f"reflected unencoded in response"
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed,  # type: ignore[arg-type]
+                    vector, payload, response, elapsed,
                     Confidence.LIKELY, evidence,
                 )
 

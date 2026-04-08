@@ -14,13 +14,15 @@ from src.vectors.models import AttackVector, SurfaceType, VulnType
 
 def _make_vector(url: str = "http://localhost/login", field: str = "username") -> AttackVector:
     return AttackVector(
+        source_url=url,
         target_url=url,
         method="POST",
         field_name=field,
-        surface_type=SurfaceType.FORM_FIELD,
-        extra_fields={},
+        surface=SurfaceType.FORM_FIELD,
+        field_context=f"<form><input name='{field}'>",
+        extra_params={},
         priority=1,
-        vuln_types=[VulnType.SQLI],
+        applicable_vulns=[VulnType.SQLI],
     )
 
 

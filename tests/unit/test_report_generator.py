@@ -30,13 +30,15 @@ def _make_settings(tmp_path: Path) -> Settings:
 
 def _make_vector() -> AttackVector:
     return AttackVector(
+        source_url="http://localhost:8080/login",
         target_url="http://localhost:8080/login",
         method="POST",
         field_name="username",
-        surface_type=SurfaceType.FORM_FIELD,
-        extra_fields={},
+        surface=SurfaceType.FORM_FIELD,
+        field_context="<form><input name='username'>",
+        extra_params={},
         priority=1,
-        vuln_types=[VulnType.SQLI],
+        applicable_vulns=[VulnType.SQLI],
     )
 
 

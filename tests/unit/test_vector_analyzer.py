@@ -20,10 +20,9 @@ from src.vectors.vector_analyzer import VectorAnalyzer
 def _make_page(url: str, forms: list[HTMLForm], links: list[str] | None = None) -> CrawledPage:
     return CrawledPage(
         url=url,
-        html="",
+        html_content="",
         forms=forms,
-        links=links or [],
-        status_code=200,
+        internal_links=links or [],
         crawled_at=datetime.utcnow(),
     )
 
@@ -83,7 +82,7 @@ class TestVectorAnalyzer:
         vectors = self.analyzer.analyze([page])
         cmd_vectors = [v for v in vectors if v.field_name == "cmd"]
         assert cmd_vectors
-        assert VulnType.CMDI in cmd_vectors[0].vuln_types
+        assert VulnType.CMDI in cmd_vectors[0].applicable_vulns
 
     def test_hidden_field_gets_only_sqli(self) -> None:
         form = _make_form(
@@ -95,7 +94,7 @@ class TestVectorAnalyzer:
         vectors = self.analyzer.analyze([page])
         id_vectors = [v for v in vectors if v.field_name == "id"]
         assert id_vectors
-        assert id_vectors[0].vuln_types == [VulnType.SQLI]
+        assert id_vectors[0].applicable_vulns == [VulnType.SQLI]
 
     def test_url_params_extracted(self) -> None:
         page = _make_page("http://localhost/search?q=hello&page=1", [])

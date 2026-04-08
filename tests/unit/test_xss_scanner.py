@@ -14,13 +14,15 @@ from src.vectors.models import AttackVector, SurfaceType, VulnType
 
 def _make_vector(url: str = "http://localhost/search", field: str = "q") -> AttackVector:
     return AttackVector(
+        source_url=url,
         target_url=url,
         method="GET",
         field_name=field,
-        surface_type=SurfaceType.URL_PARAM,
-        extra_fields={},
+        surface=SurfaceType.URL_PARAM,
+        field_context=f"URL query parameter: {field}",
+        extra_params={},
         priority=1,
-        vuln_types=[VulnType.XSS],
+        applicable_vulns=[VulnType.XSS],
     )
 
 

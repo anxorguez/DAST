@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import re
+import time
 
+import httpx
 from loguru import logger
 
 from src.analysis.models import Confidence, RawFinding
@@ -139,24 +141,20 @@ class XXEScanner(BaseScanner):
 
     async def _send_xml(
         self, vector: AttackVector, payload: str
-    ) -> tuple[object, int]:
+    ) -> tuple[httpx.Response, int]:
         """Send the XML payload with an appropriate Content-Type header.
 
         Uses post_no_retry because XXE probes are timing-insensitive and
         we don't want to trigger WAF rate-limiting with retries.
         """
-        import time
-
-        import httpx
-
         headers = {"Content-Type": "application/xml; charset=utf-8"}
 
         start = time.monotonic()
         try:
             response = await self._http.post_no_retry(
                 vector.target_url,
-                data=payload.encode("utf-8"),  # type: ignore[arg-type]
-                headers=headers,  # type: ignore[arg-type]
+                data=payload.encode("utf-8"),
+                headers=headers,
             )
         except Exception:
             # Fall back to field injection if the XML post failed.
