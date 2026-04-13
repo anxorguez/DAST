@@ -10,15 +10,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from enum import Enum
-
+from enum import StrEnum
 
 # ---------------------------------------------------------------------------
 # CVSS 3.1 Metric Enumerations
 # ---------------------------------------------------------------------------
 
 
-class CVSSAttackVector(str, Enum):
+class CVSSAttackVector(StrEnum):
     """Attack Vector (AV) metric."""
 
     NETWORK = "N"
@@ -27,14 +26,14 @@ class CVSSAttackVector(str, Enum):
     PHYSICAL = "P"
 
 
-class CVSSAttackComplexity(str, Enum):
+class CVSSAttackComplexity(StrEnum):
     """Attack Complexity (AC) metric."""
 
     LOW = "L"
     HIGH = "H"
 
 
-class CVSSPrivilegesRequired(str, Enum):
+class CVSSPrivilegesRequired(StrEnum):
     """Privileges Required (PR) metric."""
 
     NONE = "N"
@@ -42,21 +41,21 @@ class CVSSPrivilegesRequired(str, Enum):
     HIGH = "H"
 
 
-class CVSSUserInteraction(str, Enum):
+class CVSSUserInteraction(StrEnum):
     """User Interaction (UI) metric."""
 
     NONE = "N"
     REQUIRED = "R"
 
 
-class CVSSScope(str, Enum):
+class CVSSScope(StrEnum):
     """Scope (S) metric."""
 
     UNCHANGED = "U"
     CHANGED = "C"
 
 
-class CVSSImpact(str, Enum):
+class CVSSImpact(StrEnum):
     """Confidentiality / Integrity / Availability Impact metrics."""
 
     NONE = "N"

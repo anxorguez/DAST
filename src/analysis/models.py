@@ -5,25 +5,24 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from src.vectors.models import AttackVector, VulnType
-
 
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------
 
 
-class Confidence(str, Enum):
+class Confidence(StrEnum):
     """How confident the scanner is that this is a real finding."""
 
-    CONFIRMED = "confirmed"   # Direct evidence (exec, SQL error visible)
-    LIKELY = "likely"         # Strong indicators but not direct execution
-    POSSIBLE = "possible"     # Anomalous response — may be false positive
+    CONFIRMED = "confirmed"  # Direct evidence (exec, SQL error visible)
+    LIKELY = "likely"  # Strong indicators but not direct execution
+    POSSIBLE = "possible"  # Anomalous response — may be false positive
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """CVSS-inspired severity classification (simplified fixed rules)."""
 
     CRITICAL = "critical"
@@ -55,10 +54,10 @@ class RawFinding:
     vector: AttackVector
     vuln_type: VulnType
     payload: str
-    response_snippet: str        # Relevant fragment of the HTTP response (max 500 chars)
+    response_snippet: str  # Relevant fragment of the HTTP response (max 500 chars)
     confidence: Confidence
-    evidence: str                # Human-readable explanation of why this is suspicious
-    response_time_ms: int = 0    # Milliseconds; key for time-based detections
+    evidence: str  # Human-readable explanation of why this is suspicious
+    response_time_ms: int = 0  # Milliseconds; key for time-based detections
     found_at: datetime = field(default_factory=datetime.utcnow)
 
 

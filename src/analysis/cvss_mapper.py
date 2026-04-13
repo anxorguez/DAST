@@ -161,9 +161,7 @@ def _map_xss(finding: RawFinding) -> CVSSVector:
     return CVSSVector(
         attack_vector=CVSSAttackVector.NETWORK,
         attack_complexity=CVSSAttackComplexity.LOW,
-        privileges_required=(
-            CVSSPrivilegesRequired.LOW if stored else CVSSPrivilegesRequired.NONE
-        ),
+        privileges_required=(CVSSPrivilegesRequired.LOW if stored else CVSSPrivilegesRequired.NONE),
         user_interaction=CVSSUserInteraction.REQUIRED,
         scope=CVSSScope.CHANGED,
         confidentiality=CVSSImpact.LOW,

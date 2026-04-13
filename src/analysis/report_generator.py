@@ -75,9 +75,7 @@ class ReportGenerator:
             await self._write_sqlite(report)
             self._write_json(report)
             self._write_html(report)
-            logger.info(
-                "Reports written to {d}", d=str(self._scan_dir)
-            )
+            logger.info("Reports written to {d}", d=str(self._scan_dir))
         except Exception as exc:
             raise ReportError(f"Report generation failed: {exc}") from exc
 
@@ -138,9 +136,7 @@ class ReportGenerator:
 
     def _write_html(self, report: ScanReport) -> None:
         if not _TEMPLATES_DIR.is_dir():
-            raise ReportError(
-                f"Templates directory not found: {_TEMPLATES_DIR}"
-            )
+            raise ReportError(f"Templates directory not found: {_TEMPLATES_DIR}")
 
         env = Environment(
             loader=FileSystemLoader(str(_TEMPLATES_DIR)),
@@ -166,9 +162,7 @@ class ReportGenerator:
 # ---------------------------------------------------------------------------
 
 
-def _finding_row(
-    finding: ValidatedFinding, scan_id: str
-) -> tuple[object, ...]:
+def _finding_row(finding: ValidatedFinding, scan_id: str) -> tuple[object, ...]:
     raw = finding.raw
     return (
         finding.id,
@@ -196,9 +190,7 @@ def _report_to_dict(report: ScanReport) -> dict[str, object]:
         "target_url": report.target_url,
         "started_at": report.started_at.isoformat(),
         "finished_at": report.finished_at.isoformat(),
-        "duration_seconds": (
-            report.finished_at - report.started_at
-        ).total_seconds(),
+        "duration_seconds": (report.finished_at - report.started_at).total_seconds(),
         "pages_crawled": report.pages_crawled,
         "vectors_found": report.vectors_found,
         "total_findings": len(report.findings),

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from src.analysis.cvss import calculate_base_score, vector_to_string
 from src.analysis.cvss_mapper import map_finding_to_cvss
-from src.analysis.models import RawFinding, Severity, ValidatedFinding
+from src.analysis.models import Severity, ValidatedFinding
 from src.vectors.models import VulnType
 
 # ---------------------------------------------------------------------------
