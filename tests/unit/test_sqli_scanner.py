@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.analysis.models import Confidence, RawFinding
+from src.analysis.models import Confidence
 from src.core.config import Settings
 from src.fuzzing.sqli_scanner import SQLiScanner
 from src.vectors.models import AttackVector, SurfaceType, VulnType

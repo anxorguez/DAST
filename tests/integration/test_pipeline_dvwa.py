@@ -10,10 +10,8 @@ These tests are skipped automatically when DVWA is not reachable.
 
 from __future__ import annotations
 
-import asyncio
 import os
 from pathlib import Path
-from unittest.mock import patch
 
 import httpx
 import pytest
@@ -75,8 +73,7 @@ async def test_pipeline_finds_vulns_in_dvwa(dvwa_settings: Settings, tmp_path: P
     assert report.vectors_found > 0
 
     severe_findings = [
-        f for f in report.findings
-        if f.severity in (Severity.CRITICAL, Severity.HIGH)
+        f for f in report.findings if f.severity in (Severity.CRITICAL, Severity.HIGH)
     ]
     assert len(severe_findings) > 0, (
         f"Expected at least one HIGH/CRITICAL finding in DVWA. "

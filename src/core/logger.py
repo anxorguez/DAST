@@ -7,9 +7,7 @@ from pathlib import Path
 
 from loguru import logger
 
-_LOG_FORMAT = (
-    "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{line} | {message}"
-)
+_LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{line} | {message}"
 
 
 def setup_logger(log_level: str = "INFO", log_file: Path | None = None) -> None:
@@ -45,7 +43,7 @@ def setup_logger(log_level: str = "INFO", log_file: Path | None = None) -> None:
         )
 
 
-def get_logger(name: str) -> "logger":  # type: ignore[name-defined]
+def get_logger(name: str) -> logger:
     """Return a logger bound to a specific module name.
 
     Usage::

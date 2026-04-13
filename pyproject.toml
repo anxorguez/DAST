@@ -44,9 +44,12 @@ select = [
 ]
 ignore = [
     "S101",  # assert allowed in tests
+    "S105",  # field names like "password" are not hardcoded secrets
+    "S110",  # try-except-pass is intentional for optional Playwright states
+    "S311",  # random is fine for non-crypto use
+    "S501",  # verify=False is intentional; DAST scans self-signed-cert targets
     "S603",  # subprocess without shell=True
     "S607",  # starting a process with a partial path
-    "S311",  # random is fine for non-crypto use
     "B008",  # function calls in default args (common in Click)
 ]
 

@@ -46,8 +46,11 @@ class TestPayloadLoader:
         payloads = self.loader.load_subtype(VulnType.SQLI, "nonexistent_subtype")
         assert payloads == []
 
-    def test_raises_on_missing_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_on_missing_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         import src.fuzzing.payload_loader as pl_module
+
         monkeypatch.setattr(pl_module, "_PAYLOAD_BASE", tmp_path)
         loader = PayloadLoader()
         with pytest.raises(PayloadLoadError):

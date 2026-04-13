@@ -29,9 +29,7 @@ def extract_forms(html: str, base_url: str) -> list[HTMLForm]:
         raw_action = form_tag.get("action", "")
         action_url = urljoin(base_url, str(raw_action)) if raw_action else base_url
         method = str(form_tag.get("method", "get")).upper()
-        enctype = str(
-            form_tag.get("enctype", "application/x-www-form-urlencoded")
-        )
+        enctype = str(form_tag.get("enctype", "application/x-www-form-urlencoded"))
 
         fields = _extract_fields(form_tag)
         if fields:

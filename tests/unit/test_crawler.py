@@ -2,17 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
-from src.core.config import Settings
-from src.crawler.crawler import Crawler
 from src.crawler.form_extractor import extract_forms
 from src.crawler.link_extractor import extract_links
-from src.vectors.models import CrawledPage
-
 
 SIMPLE_HTML = """
 <html>
@@ -45,7 +36,7 @@ class TestFormExtractor:
 
     def test_resolves_relative_action_url(self) -> None:
         html = '<form action="search"></form>'
-        forms = extract_forms(html, "http://localhost:8080/page")
+        extract_forms(html, "http://localhost:8080/page")
         # form has no injectable fields but action must be resolved
         # (form may be skipped entirely if no fields — just verify no crash)
 
@@ -56,11 +47,11 @@ class TestFormExtractor:
 
 class TestLinkExtractor:
     def test_extracts_internal_links(self) -> None:
-        links = extract_links(SIMPLE_HTML, "http://localhost:8080", "localhost:8080")
+        links = extract_links(SIMPLE_HTML, "http://localhost:8080", "localhost")
         assert "http://localhost:8080/about" in links
 
     def test_excludes_external_links(self) -> None:
-        links = extract_links(SIMPLE_HTML, "http://localhost:8080", "localhost:8080")
+        links = extract_links(SIMPLE_HTML, "http://localhost:8080", "localhost")
         for link in links:
             assert "external.example.com" not in link
 

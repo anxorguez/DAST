@@ -4,14 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-import pytest
-
 from src.vectors.models import (
-    AttackVector,
     CrawledPage,
     FormField,
     HTMLForm,
-    SurfaceType,
     VulnType,
 )
 from src.vectors.vector_analyzer import VectorAnalyzer

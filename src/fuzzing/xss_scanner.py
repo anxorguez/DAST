@@ -21,14 +21,27 @@ from .base_scanner import BaseScanner
 
 # Dangerous tag names that are meaningful in a reflected XSS context.
 _DANGEROUS_TAGS: tuple[str, ...] = (
-    "script", "svg", "img", "iframe", "body", "video",
-    "audio", "details", "marquee", "math",
+    "script",
+    "svg",
+    "img",
+    "iframe",
+    "body",
+    "video",
+    "audio",
+    "details",
+    "marquee",
+    "math",
 )
 
 # Event handler attribute prefixes (e.g. "onerror=", "onload=").
 _EVENT_HANDLERS: tuple[str, ...] = (
-    "onerror=", "onload=", "onclick=", "onmouseover=",
-    "onfocus=", "onsubmit=", "oninput=",
+    "onerror=",
+    "onload=",
+    "onclick=",
+    "onmouseover=",
+    "onfocus=",
+    "onsubmit=",
+    "oninput=",
 )
 
 # Patterns that indicate JS execution context in the payload.
@@ -49,9 +62,7 @@ class XSSScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Send *payload*, check if it appears unescaped in the response."""
         try:
             response, elapsed = await self._send(vector, payload)
@@ -97,9 +108,7 @@ class XSSScanner(BaseScanner):
                     f"XSS payload reflected verbatim in HTTP {response.status_code} "
                     f"response (unescaped)"
                 )
-                return self._make_finding(
-                    vector, payload, response, elapsed, confidence, evidence
-                )
+                return self._make_finding(vector, payload, response, elapsed, confidence, evidence)
 
         # Strategy 2: key structural parts of the payload appear unescaped.
         for part in self._extract_key_parts(payload):
@@ -109,8 +118,12 @@ class XSSScanner(BaseScanner):
                     f"reflected unencoded in response"
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed,
-                    Confidence.LIKELY, evidence,
+                    vector,
+                    payload,
+                    response,
+                    elapsed,
+                    Confidence.LIKELY,
+                    evidence,
                 )
 
         return None

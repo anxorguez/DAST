@@ -73,9 +73,7 @@ class SQLiScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Try one payload and return a finding if a SQLi indicator is detected."""
         try:
             payload_lower = payload.lower()
@@ -104,9 +102,7 @@ class SQLiScanner(BaseScanner):
     # Detection strategies
     # -------------------------------------------------------------------
 
-    async def _detect_error_based(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect_error_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
         response, elapsed = await self._send(vector, payload)
         body = response.text
 
@@ -114,8 +110,7 @@ class SQLiScanner(BaseScanner):
             match = pattern.search(body)
             if match:
                 evidence = (
-                    f"SQL error pattern matched: '{match.group(0)}' "
-                    f"(HTTP {response.status_code})"
+                    f"SQL error pattern matched: '{match.group(0)}' (HTTP {response.status_code})"
                 )
                 logger.debug(
                     "SQLi error-based: {url} [{field}] -> {ev}",
@@ -124,14 +119,16 @@ class SQLiScanner(BaseScanner):
                     ev=evidence,
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed,
-                    Confidence.CONFIRMED, evidence,
+                    vector,
+                    payload,
+                    response,
+                    elapsed,
+                    Confidence.CONFIRMED,
+                    evidence,
                 )
         return None
 
-    async def _detect_time_based(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect_time_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
         # Measure baseline first.
         try:
             _, baseline_ms = await self._send_baseline(vector)
@@ -159,14 +156,16 @@ class SQLiScanner(BaseScanner):
                 t=elapsed_ms,
             )
             return self._make_finding(
-                vector, payload, response, elapsed_ms,
-                Confidence.LIKELY, evidence,
+                vector,
+                payload,
+                response,
+                elapsed_ms,
+                Confidence.LIKELY,
+                evidence,
             )
         return None
 
-    async def _detect_union(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect_union(self, vector: AttackVector, payload: str) -> RawFinding | None:
         response, elapsed = await self._send(vector, payload)
         if _UNION_MARKER in response.text:
             evidence = (
@@ -174,7 +173,11 @@ class SQLiScanner(BaseScanner):
                 f"in response (HTTP {response.status_code})"
             )
             return self._make_finding(
-                vector, payload, response, elapsed,
-                Confidence.CONFIRMED, evidence,
+                vector,
+                payload,
+                response,
+                elapsed,
+                Confidence.CONFIRMED,
+                evidence,
             )
         return None

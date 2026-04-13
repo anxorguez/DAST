@@ -20,7 +20,6 @@ from src.vectors.models import (
     VulnType,
 )
 
-
 # ---------------------------------------------------------------------------
 # Event-loop (pytest-asyncio)
 # ---------------------------------------------------------------------------
@@ -98,8 +97,8 @@ def sample_crawled_page(sample_html_form: HTMLForm) -> CrawledPage:
     return CrawledPage(
         url="http://localhost:8080/login",
         html="<html><body><form method='POST' action='/login'>"
-             "<input name='username'><input name='password' type='password'>"
-             "<input type='submit'></form></body></html>",
+        "<input name='username'><input name='password' type='password'>"
+        "<input type='submit'></form></body></html>",
         forms=[sample_html_form],
         links=["http://localhost:8080/about"],
         status_code=200,

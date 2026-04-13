@@ -23,7 +23,7 @@ class HTTPClient:
         self._max_retries = max_retries
         self._client: httpx.AsyncClient | None = None
 
-    async def __aenter__(self) -> "HTTPClient":
+    async def __aenter__(self) -> HTTPClient:
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(self._timeout),
             follow_redirects=True,
@@ -41,7 +41,7 @@ class HTTPClient:
     # Public helpers
     # ------------------------------------------------------------------
 
-    @retry(
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
         reraise=True,
@@ -49,9 +49,9 @@ class HTTPClient:
     async def get(self, url: str, **kwargs: object) -> httpx.Response:
         """Perform a GET request with automatic retries."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.get(url, **kwargs)  # type: ignore[arg-type]
+        return await self._client.get(url, **kwargs)
 
-    @retry(
+    @retry(  # type: ignore[untyped-decorator]
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
         reraise=True,
@@ -59,14 +59,14 @@ class HTTPClient:
     async def post(self, url: str, **kwargs: object) -> httpx.Response:
         """Perform a POST request with automatic retries."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.post(url, **kwargs)  # type: ignore[arg-type]
+        return await self._client.post(url, **kwargs)
 
     async def get_no_retry(self, url: str, **kwargs: object) -> httpx.Response:
         """GET without retry (used for time-based measurements)."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.get(url, **kwargs)  # type: ignore[arg-type]
+        return await self._client.get(url, **kwargs)
 
     async def post_no_retry(self, url: str, **kwargs: object) -> httpx.Response:
         """POST without retry (used for time-based measurements)."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.post(url, **kwargs)  # type: ignore[arg-type]
+        return await self._client.post(url, **kwargs)

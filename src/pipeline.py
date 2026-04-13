@@ -66,16 +66,11 @@ class Pipeline:
         raw_findings = await fuzzer.run(vectors)
 
         # Module 3b — Stored XSS second pass
-        if (
-            "xss" in self._settings.payload_types_list
-            and fuzzer.injected_xss_payloads
-        ):
+        if "xss" in self._settings.payload_types_list and fuzzer.injected_xss_payloads:
             stored_hits = await crawler.second_pass(fuzzer.injected_xss_payloads)
             stored_findings = self._hits_to_findings(stored_hits, vectors)
             raw_findings.extend(stored_findings)
-            logger.info(
-                "Module 3 (stored XSS pass): {n} candidate(s)", n=len(stored_findings)
-            )
+            logger.info("Module 3 (stored XSS pass): {n} candidate(s)", n=len(stored_findings))
 
         logger.info(
             "Module 3 complete: {n} raw finding(s) before validation",
@@ -126,9 +121,7 @@ class Pipeline:
         findings: list[RawFinding] = []
         for hit in hits:
             # Find a matching vector by URL, or create a synthetic one.
-            source_vector = next(
-                (v for v in vectors if v.source_url == hit.page_url), None
-            )
+            source_vector = next((v for v in vectors if v.source_url == hit.page_url), None)
             if source_vector is None:
                 source_vector = AttackVector(
                     source_url=hit.page_url,
@@ -164,9 +157,7 @@ class Pipeline:
                         payload=hit.payload,
                         response_snippet=hit.evidence_snippet,
                         confidence=Confidence.CONFIRMED,
-                        evidence=(
-                            f"Stored XSS: payload found unescaped in DOM of {hit.page_url}"
-                        ),
+                        evidence=(f"Stored XSS: payload found unescaped in DOM of {hit.page_url}"),
                         response_time_ms=0,
                     )
                 )

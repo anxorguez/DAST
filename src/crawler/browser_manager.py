@@ -27,7 +27,7 @@ class BrowserManager:
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
 
-    async def __aenter__(self) -> "BrowserManager":
+    async def __aenter__(self) -> BrowserManager:
         self._playwright = await async_playwright().start()
         self._browser = await self._playwright.chromium.launch(
             headless=self._headless,

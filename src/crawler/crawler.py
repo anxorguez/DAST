@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections import deque
 from datetime import datetime
 from urllib.parse import urlparse
 
 from loguru import logger
-from playwright.async_api import BrowserContext, Page
+from playwright.async_api import BrowserContext, Page, Request
 
 from src.core.config import Settings
-from src.core.exceptions import AuthenticationError, CrawlerError
+from src.core.exceptions import AuthenticationError
 from src.vectors.models import CrawledPage
 
 from .browser_manager import BrowserManager
 from .form_extractor import extract_forms
 from .link_extractor import extract_links
-
 
 # ---------------------------------------------------------------------------
 # Stored-XSS hit — lightweight struct used between crawler and pipeline.
@@ -76,9 +74,7 @@ class Crawler:
                     await self._authenticate(context)
 
                 pages = await self._bfs_crawl(context)
-                logger.info(
-                    "Crawl complete: visited {n} pages", n=len(pages)
-                )
+                logger.info("Crawl complete: visited {n} pages", n=len(pages))
                 return pages
             finally:
                 await context.close()
@@ -107,9 +103,7 @@ class Crawler:
                 urls_to_check = list(self._visited) or [self._settings.target_url]
 
                 for url in urls_to_check:
-                    page_hits = await self._check_stored_xss(
-                        context, url, xss_payloads
-                    )
+                    page_hits = await self._check_stored_xss(context, url, xss_payloads)
                     hits.extend(page_hits)
             finally:
                 await context.close()
@@ -161,9 +155,7 @@ class Crawler:
 
     async def _bfs_crawl(self, context: BrowserContext) -> list[CrawledPage]:
         """Breadth-first traversal starting from TARGET_URL."""
-        queue: deque[tuple[str, int]] = deque(
-            [(self._settings.target_url, 0)]
-        )
+        queue: deque[tuple[str, int]] = deque([(self._settings.target_url, 0)])
         crawled: list[CrawledPage] = []
         in_queue: set[str] = {self._settings.target_url}
 
@@ -200,10 +192,9 @@ class Crawler:
         try:
             page = await context.new_page()
 
-            def _capture_xhr(request: object) -> None:
-                req = request  # type: ignore[assignment]
-                if req.resource_type in ("xhr", "fetch"):  # type: ignore[union-attr]
-                    xhr_endpoints.append(req.url)  # type: ignore[union-attr]
+            def _capture_xhr(request: Request) -> None:
+                if request.resource_type in ("xhr", "fetch"):
+                    xhr_endpoints.append(request.url)
 
             page.on("request", _capture_xhr)
 
@@ -278,14 +269,10 @@ class Crawler:
                     end = min(len(content), idx + len(payload) + 60)
                     snippet = content[start:end]
                     hits.append(StoredXSSHit(url, payload, snippet))
-                    logger.debug(
-                        "Stored XSS payload found in {url}", url=url
-                    )
+                    logger.debug("Stored XSS payload found in {url}", url=url)
 
         except Exception as exc:
-            logger.debug(
-                "Second-pass error for {url}: {err}", url=url, err=exc
-            )
+            logger.debug("Second-pass error for {url}: {err}", url=url, err=exc)
         finally:
             if page is not None:
                 try:

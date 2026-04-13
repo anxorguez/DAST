@@ -24,11 +24,7 @@ class DOMParser:
 
     def find_inputs_in(self, form: Tag) -> list[Tag]:
         """Return all input/textarea/select elements inside *form*."""
-        return [
-            t
-            for t in form.find_all(["input", "textarea", "select"])
-            if isinstance(t, Tag)
-        ]
+        return [t for t in form.find_all(["input", "textarea", "select"]) if isinstance(t, Tag)]
 
     def find_links(self) -> list[str]:
         """Return the raw href values of all <a href=...> elements."""
@@ -41,9 +37,14 @@ class DOMParser:
     def find_event_handlers(self) -> list[tuple[str, str]]:
         """Return (event_name, handler_code) pairs for all inline event handlers."""
         events = [
-            "onclick", "onsubmit", "onchange",
-            "onload", "onerror", "onmouseover",
-            "onfocus", "oninput",
+            "onclick",
+            "onsubmit",
+            "onchange",
+            "onload",
+            "onerror",
+            "onmouseover",
+            "onfocus",
+            "oninput",
         ]
         result: list[tuple[str, str]] = []
         for event in events:

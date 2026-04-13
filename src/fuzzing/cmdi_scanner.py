@@ -21,9 +21,9 @@ from .base_scanner import BaseScanner
 _UNIX_OUTPUT_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
     for p in [
-        r"uid=\d+\(",         # id output: uid=0(root)
-        r"gid=\d+\(",         # id output: gid=0(root)
-        r"root:x:\d+:\d+:",   # /etc/passwd line
+        r"uid=\d+\(",  # id output: uid=0(root)
+        r"gid=\d+\(",  # id output: gid=0(root)
+        r"root:x:\d+:\d+:",  # /etc/passwd line
         r"/bin/(sh|bash|dash|zsh)",
         r"/usr/bin/",
         r"/etc/passwd",
@@ -32,7 +32,7 @@ _UNIX_OUTPUT_PATTERNS: list[re.Pattern[str]] = [
         r"permission denied",
         r"no such file or directory",
         r"sh: \d+:",
-        r"\$\s*$",            # Shell prompt artifact
+        r"\$\s*$",  # Shell prompt artifact
     ]
 ]
 
@@ -66,18 +66,13 @@ class CMDiScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Try one payload; return a finding if CMDi evidence is found."""
         try:
             payload_lower = payload.lower()
 
             # Time-based payloads (sleep / ping -c N / ping -n N)
-            if any(
-                kw in payload_lower
-                for kw in ("sleep ", "ping -c", "ping -n")
-            ):
+            if any(kw in payload_lower for kw in ("sleep ", "ping -c", "ping -n")):
                 return await self._detect_time_based(vector, payload)
 
             # Error-based / output-based
@@ -96,9 +91,7 @@ class CMDiScanner(BaseScanner):
     # Detection strategies
     # -------------------------------------------------------------------
 
-    async def _detect_error_based(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect_error_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
         response, elapsed = await self._send(vector, payload)
         body = response.text
 
@@ -106,8 +99,7 @@ class CMDiScanner(BaseScanner):
             match = pattern.search(body)
             if match:
                 evidence = (
-                    f"CMDi output pattern matched: '{match.group(0)}' "
-                    f"(HTTP {response.status_code})"
+                    f"CMDi output pattern matched: '{match.group(0)}' (HTTP {response.status_code})"
                 )
                 logger.debug(
                     "CMDi error-based: {url} [{field}] -> {ev}",
@@ -116,14 +108,16 @@ class CMDiScanner(BaseScanner):
                     ev=evidence,
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed,
-                    Confidence.CONFIRMED, evidence,
+                    vector,
+                    payload,
+                    response,
+                    elapsed,
+                    Confidence.CONFIRMED,
+                    evidence,
                 )
         return None
 
-    async def _detect_time_based(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect_time_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
         try:
             _, baseline_ms = await self._send_baseline(vector)
         except Exception:
@@ -149,7 +143,11 @@ class CMDiScanner(BaseScanner):
                 t=elapsed_ms,
             )
             return self._make_finding(
-                vector, payload, response, elapsed_ms,
-                Confidence.LIKELY, evidence,
+                vector,
+                payload,
+                response,
+                elapsed_ms,
+                Confidence.LIKELY,
+                evidence,
             )
         return None

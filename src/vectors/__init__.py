@@ -1,4 +1,3 @@
-from src.vectors.vector_analyzer import VectorAnalyzer
 from src.vectors.models import (
     AttackVector,
     CrawledPage,
@@ -7,6 +6,7 @@ from src.vectors.models import (
     SurfaceType,
     VulnType,
 )
+from src.vectors.vector_analyzer import VectorAnalyzer
 
 __all__ = [
     "VectorAnalyzer",

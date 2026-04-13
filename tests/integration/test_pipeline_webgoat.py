@@ -16,7 +16,6 @@ from pathlib import Path
 import httpx
 import pytest
 
-from src.analysis.models import Severity
 from src.core.config import Settings
 from src.pipeline import Pipeline
 

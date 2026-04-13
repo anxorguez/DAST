@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.analysis.models import Confidence, RawFinding
 from src.core.config import Settings
 from src.fuzzing.xss_scanner import XSSScanner
 from src.vectors.models import AttackVector, SurfaceType, VulnType
@@ -69,7 +68,9 @@ async def test_reflected_payload_detected(settings: Settings, mock_http: MagicMo
 
 
 @pytest.mark.asyncio
-async def test_no_finding_when_payload_not_reflected(settings: Settings, mock_http: MagicMock) -> None:
+async def test_no_finding_when_payload_not_reflected(
+    settings: Settings, mock_http: MagicMock
+) -> None:
     payload = "<script>alert(1)</script>"
     html = "<html><body>Search results for: &lt;script&gt;alert(1)&lt;/script&gt;</body></html>"
     mock_http.get = AsyncMock(return_value=_mock_response(html))
@@ -85,7 +86,7 @@ async def test_no_finding_when_payload_not_reflected(settings: Settings, mock_ht
 @pytest.mark.asyncio
 async def test_event_handler_partial_match(settings: Settings, mock_http: MagicMock) -> None:
     payload = "<img src=x onerror=alert(1)>"
-    html = f"<html><body><img src=x onerror=alert(1)></body></html>"
+    html = "<html><body><img src=x onerror=alert(1)></body></html>"
     mock_http.get = AsyncMock(return_value=_mock_response(html))
     mock_http.get_no_retry = AsyncMock(return_value=_mock_response(html))
 
