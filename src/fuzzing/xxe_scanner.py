@@ -23,15 +23,15 @@ from .base_scanner import BaseScanner
 _FILE_CONTENT_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
     for p in [
-        r"root:x:\d+:\d+:",         # /etc/passwd
+        r"root:x:\d+:\d+:",  # /etc/passwd
         r"daemon:x:\d+:\d+:",
-        r"\[boot loader\]",          # boot.ini
-        r"\[extensions\]",           # win.ini
-        r"\[fonts\]",                # win.ini
-        r"127\.0\.0\.1\s+localhost", # /etc/hosts
+        r"\[boot loader\]",  # boot.ini
+        r"\[extensions\]",  # win.ini
+        r"\[fonts\]",  # win.ini
+        r"127\.0\.0\.1\s+localhost",  # /etc/hosts
         r"AWS_SECRET_ACCESS_KEY",
         r"AWS_ACCESS_KEY_ID",
-        r"ami-id",                   # AWS metadata
+        r"ami-id",  # AWS metadata
     ]
 ]
 
@@ -77,9 +77,7 @@ class XXEScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Send an XML payload and check for entity resolution or parser errors."""
         try:
             # Send payload as XML body regardless of the vector's default
@@ -102,8 +100,12 @@ class XXEScanner(BaseScanner):
                         field=vector.field_name,
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.CONFIRMED, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.CONFIRMED,
+                        evidence,
                     )
 
             # Strategy 2: XML parser error — entity processing attempted (LIKELY).
@@ -121,8 +123,12 @@ class XXEScanner(BaseScanner):
                         e=match.group(0),
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.LIKELY, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.LIKELY,
+                        evidence,
                     )
 
         except Exception as exc:
@@ -139,9 +145,7 @@ class XXEScanner(BaseScanner):
     # Internal helpers
     # -------------------------------------------------------------------
 
-    async def _send_xml(
-        self, vector: AttackVector, payload: str
-    ) -> tuple[httpx.Response, int]:
+    async def _send_xml(self, vector: AttackVector, payload: str) -> tuple[httpx.Response, int]:
         """Send the XML payload with an appropriate Content-Type header.
 
         Uses post_no_retry because XXE probes are timing-insensitive and

@@ -42,9 +42,7 @@ class PayloadLoader:
         dir_path = _PAYLOAD_BASE / _VULN_DIR[vuln_type]
 
         if not dir_path.is_dir():
-            raise PayloadLoadError(
-                f"Payload directory not found: {dir_path}"
-            )
+            raise PayloadLoadError(f"Payload directory not found: {dir_path}")
 
         payloads: list[str] = []
         seen: set[str] = set()
@@ -62,18 +60,12 @@ class PayloadLoader:
                             if len(payloads) >= max_count:
                                 return payloads
             except OSError as exc:
-                logger.warning(
-                    "Could not read payload file {f}: {err}", f=filepath, err=exc
-                )
+                logger.warning("Could not read payload file {f}: {err}", f=filepath, err=exc)
 
-        logger.debug(
-            "Loaded {n} payloads for {vt}", n=len(payloads), vt=vuln_type.value
-        )
+        logger.debug("Loaded {n} payloads for {vt}", n=len(payloads), vt=vuln_type.value)
         return payloads
 
-    def load_subtype(
-        self, vuln_type: VulnType, subtype: str, max_count: int = 50
-    ) -> list[str]:
+    def load_subtype(self, vuln_type: VulnType, subtype: str, max_count: int = 50) -> list[str]:
         """Load payloads from a specific subtype file (e.g. 'time_based' for sqli).
 
         Args:
@@ -103,8 +95,6 @@ class PayloadLoader:
                         if len(payloads) >= max_count:
                             break
         except OSError as exc:
-            logger.warning(
-                "Could not read payload file {f}: {err}", f=filepath, err=exc
-            )
+            logger.warning("Could not read payload file {f}: {err}", f=filepath, err=exc)
 
         return payloads

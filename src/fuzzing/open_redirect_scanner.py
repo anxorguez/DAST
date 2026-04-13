@@ -65,9 +65,7 @@ class OpenRedirectScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Inject *payload* and look for redirect to the probe domain."""
         try:
             # We need the raw 3xx response, not the followed redirect.
@@ -90,8 +88,12 @@ class OpenRedirectScanner(BaseScanner):
                         loc=location,
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.CONFIRMED, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.CONFIRMED,
+                        evidence,
                     )
 
             # Strategy 2: Meta-refresh redirect in the HTML body.
@@ -104,8 +106,12 @@ class OpenRedirectScanner(BaseScanner):
                         f"to '{redirect_url}' (HTTP {status})."
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.LIKELY, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.LIKELY,
+                        evidence,
                     )
 
             # Strategy 3: JavaScript location assignment.
@@ -119,8 +125,12 @@ class OpenRedirectScanner(BaseScanner):
                             f"detected in response body (HTTP {status})."
                         )
                         return self._make_finding(
-                            vector, payload, response, elapsed,
-                            Confidence.LIKELY, evidence,
+                            vector,
+                            payload,
+                            response,
+                            elapsed,
+                            Confidence.LIKELY,
+                            evidence,
                         )
 
         except Exception as exc:
@@ -145,12 +155,8 @@ class OpenRedirectScanner(BaseScanner):
 
         start = time.monotonic()
         if vector.method == "POST":
-            response = await self._http.post_no_retry(
-                vector.target_url, data=params
-            )
+            response = await self._http.post_no_retry(vector.target_url, data=params)
         else:
-            response = await self._http.get_no_retry(
-                vector.target_url, params=params
-            )
+            response = await self._http.get_no_retry(vector.target_url, params=params)
         elapsed_ms = int((time.monotonic() - start) * 1000)
         return response, elapsed_ms

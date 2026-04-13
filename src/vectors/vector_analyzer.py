@@ -12,10 +12,10 @@ from src.vectors.models import AttackVector, CrawledPage, SurfaceType, VulnType
 
 # Patterns that suggest a field value contains serialized data.
 _SERIALIZED_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"^rO0AB"),       # Java serialization base64 header
-    re.compile(r"^AAEAAAD"),     # .NET BinaryFormatter base64 header
-    re.compile(r"^O:\d+:"),      # PHP object serialization
-    re.compile(r"^a:\d+:\{"),    # PHP array serialization
+    re.compile(r"^rO0AB"),  # Java serialization base64 header
+    re.compile(r"^AAEAAAD"),  # .NET BinaryFormatter base64 header
+    re.compile(r"^O:\d+:"),  # PHP object serialization
+    re.compile(r"^a:\d+:\{"),  # PHP array serialization
 ]
 
 
@@ -32,6 +32,7 @@ def _looks_like_serialized(value: str) -> bool:
         pass
     return False
 
+
 # ---------------------------------------------------------------------------
 # Priority heuristics
 # ---------------------------------------------------------------------------
@@ -39,53 +40,127 @@ def _looks_like_serialized(value: str) -> bool:
 # Field names that historically appear in vulnerable injection points.
 _HIGH_PRIORITY_NAMES: frozenset[str] = frozenset(
     {
-        "id", "user", "username", "name", "query", "q", "search", "keyword",
-        "cat", "category", "password", "pass", "email", "file", "filename",
-        "path", "cmd", "command", "exec", "order", "sort", "dir", "page",
-        "num", "limit", "offset", "table", "column", "field",
+        "id",
+        "user",
+        "username",
+        "name",
+        "query",
+        "q",
+        "search",
+        "keyword",
+        "cat",
+        "category",
+        "password",
+        "pass",
+        "email",
+        "file",
+        "filename",
+        "path",
+        "cmd",
+        "command",
+        "exec",
+        "order",
+        "sort",
+        "dir",
+        "page",
+        "num",
+        "limit",
+        "offset",
+        "table",
+        "column",
+        "field",
     }
 )
 
 # These field names suggest OS command execution context — add CMDi.
 _CMDI_HINT_NAMES: frozenset[str] = frozenset(
     {
-        "cmd", "command", "exec", "execute", "shell", "ping",
-        "host", "ip", "file", "filename", "path",
+        "cmd",
+        "command",
+        "exec",
+        "execute",
+        "shell",
+        "ping",
+        "host",
+        "ip",
+        "file",
+        "filename",
+        "path",
     }
 )
 
 # Field names that suggest server-side URL fetching — add SSRF.
 _SSRF_HINT_NAMES: frozenset[str] = frozenset(
     {
-        "url", "endpoint", "api", "webhook", "proxy", "fetch",
-        "load", "src", "href", "callback", "target", "dest",
-        "destination", "image", "imageurl", "avatar", "icon",
+        "url",
+        "endpoint",
+        "api",
+        "webhook",
+        "proxy",
+        "fetch",
+        "load",
+        "src",
+        "href",
+        "callback",
+        "target",
+        "dest",
+        "destination",
+        "image",
+        "imageurl",
+        "avatar",
+        "icon",
     }
 )
 
 # Field names that suggest file or path input — add Path Traversal.
 _PATH_TRAVERSAL_HINT_NAMES: frozenset[str] = frozenset(
     {
-        "file", "filename", "path", "template", "include", "dir",
-        "download", "read", "load", "document", "resource", "page",
-        "view", "src", "folder", "location",
+        "file",
+        "filename",
+        "path",
+        "template",
+        "include",
+        "dir",
+        "download",
+        "read",
+        "load",
+        "document",
+        "resource",
+        "page",
+        "view",
+        "src",
+        "folder",
+        "location",
     }
 )
 
 # Field names that suggest redirect target — add Open Redirect.
 _OPEN_REDIRECT_HINT_NAMES: frozenset[str] = frozenset(
     {
-        "url", "redirect", "next", "return", "returnto", "goto",
-        "target", "destination", "redir", "continue", "forward",
-        "back", "ref", "referer", "return_url", "redirect_url",
-        "callback", "success_url", "cancel_url",
+        "url",
+        "redirect",
+        "next",
+        "return",
+        "returnto",
+        "goto",
+        "target",
+        "destination",
+        "redir",
+        "continue",
+        "forward",
+        "back",
+        "ref",
+        "referer",
+        "return_url",
+        "redirect_url",
+        "callback",
+        "success_url",
+        "cancel_url",
     }
 )
 
 # Field types that are not normally injectable (skip them).
-_SKIP_TYPES: frozenset[str] = frozenset(
-    {"submit", "button", "image", "reset", "file"}
-)
+_SKIP_TYPES: frozenset[str] = frozenset({"submit", "button", "image", "reset", "file"})
 
 
 class VectorAnalyzer:
@@ -108,9 +183,7 @@ class VectorAnalyzer:
                     vectors.append(vector)
 
         vectors.sort(key=lambda v: v.priority)
-        logger.info(
-            "Vector analysis complete: {n} unique vectors identified", n=len(vectors)
-        )
+        logger.info("Vector analysis complete: {n} unique vectors identified", n=len(vectors))
         return vectors
 
     # -------------------------------------------------------------------
@@ -138,9 +211,7 @@ class VectorAnalyzer:
                         method=form.method,
                         surface=SurfaceType.FORM_FIELD,
                         field_name=frm_field.name,
-                        field_context=(
-                            f"<form action='{form.action_url}' method='{form.method}'>"
-                        ),
+                        field_context=(f"<form action='{form.action_url}' method='{form.method}'>"),
                         applicable_vulns=self._applicable_vulns(
                             frm_field.name,
                             frm_field.field_type,

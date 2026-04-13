@@ -9,15 +9,14 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
-
+from enum import StrEnum
 
 # ---------------------------------------------------------------------------
 # Enumerations
 # ---------------------------------------------------------------------------
 
 
-class SurfaceType(str, Enum):
+class SurfaceType(StrEnum):
     """Classification of the attack surface for a given vector."""
 
     FORM_FIELD = "form_field"
@@ -29,7 +28,7 @@ class SurfaceType(str, Enum):
     STORED = "stored"  # Synthetic surface used for stored-XSS second-pass findings
 
 
-class VulnType(str, Enum):
+class VulnType(StrEnum):
     """Vulnerability class tested by the fuzzing engine."""
 
     SQLI = "sqli"

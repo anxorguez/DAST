@@ -66,9 +66,7 @@ class SSRFScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Inject *payload* URL and analyse the response for internal content."""
         try:
             # Baseline for size-difference comparison.
@@ -97,8 +95,12 @@ class SSRFScanner(BaseScanner):
                         ev=evidence,
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.CONFIRMED, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.CONFIRMED,
+                        evidence,
                     )
 
             # Strategy 2: significant size difference suggests the server
@@ -117,8 +119,12 @@ class SSRFScanner(BaseScanner):
                     d=size_diff,
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed,
-                    Confidence.LIKELY, evidence,
+                    vector,
+                    payload,
+                    response,
+                    elapsed,
+                    Confidence.LIKELY,
+                    evidence,
                 )
 
         except Exception as exc:

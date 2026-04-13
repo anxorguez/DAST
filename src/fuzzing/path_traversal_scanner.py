@@ -37,7 +37,7 @@ _FILE_CONTENT_PATTERNS: list[re.Pattern[str]] = [
         r"operating systems",
         r"WINDOWS\s*=",
         # Other indicators
-        r"\[php\]",           # php.ini
+        r"\[php\]",  # php.ini
         r"extension_dir\s*=",  # php.ini
     ]
 ]
@@ -61,9 +61,25 @@ _TRAVERSAL_ERROR_PATTERNS: list[re.Pattern[str]] = [
 # Field names that commonly accept file paths and are therefore high-value targets.
 _PATH_HINT_NAMES: frozenset[str] = frozenset(
     {
-        "file", "filename", "path", "document", "template", "page",
-        "include", "dir", "folder", "src", "download", "read", "load",
-        "resource", "location", "url", "link", "name", "view",
+        "file",
+        "filename",
+        "path",
+        "document",
+        "template",
+        "page",
+        "include",
+        "dir",
+        "folder",
+        "src",
+        "download",
+        "read",
+        "load",
+        "resource",
+        "location",
+        "url",
+        "link",
+        "name",
+        "view",
     }
 )
 
@@ -79,9 +95,7 @@ class PathTraversalScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Inject a traversal sequence and check if system file content is returned."""
         try:
             response, elapsed = await self._send(vector, payload)
@@ -101,8 +115,12 @@ class PathTraversalScanner(BaseScanner):
                         field=vector.field_name,
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.CONFIRMED, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.CONFIRMED,
+                        evidence,
                     )
 
             # Strategy 2: file-access error — traversal reached the filesystem.
@@ -121,8 +139,12 @@ class PathTraversalScanner(BaseScanner):
                         e=match.group(0),
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.LIKELY, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.LIKELY,
+                        evidence,
                     )
 
         except Exception as exc:

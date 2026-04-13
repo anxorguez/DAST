@@ -60,13 +60,13 @@ _DESER_ERROR_PATTERNS: list[re.Pattern[str]] = [
 
 # Patterns that suggest the field might contain serialized data.
 _SERIALIZED_VALUE_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r"^rO0AB"),          # Java: base64(0xAC 0xED 0x00 0x05)
-    re.compile(r"^AAEAAAD"),        # .NET BinaryFormatter base64 header
-    re.compile(r"^O:\d+:"),         # PHP object serialization
-    re.compile(r"^a:\d+:\{"),       # PHP array serialization
-    re.compile(r"^s:\d+:"),         # PHP string serialization
+    re.compile(r"^rO0AB"),  # Java: base64(0xAC 0xED 0x00 0x05)
+    re.compile(r"^AAEAAAD"),  # .NET BinaryFormatter base64 header
+    re.compile(r"^O:\d+:"),  # PHP object serialization
+    re.compile(r"^a:\d+:\{"),  # PHP array serialization
+    re.compile(r"^s:\d+:"),  # PHP string serialization
     re.compile(r"^\x80[\x02-\x05]"),  # Python pickle PROTO opcode
-    re.compile(r"^gAS"),            # Python pickle protocol 4+ base64
+    re.compile(r"^gAS"),  # Python pickle protocol 4+ base64
 ]
 
 
@@ -101,9 +101,7 @@ class DeserializationScanner(BaseScanner):
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
 
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Send a malformed serialized payload and inspect the response."""
         try:
             response, elapsed = await self._send(vector, payload)
@@ -124,8 +122,12 @@ class DeserializationScanner(BaseScanner):
                         field=vector.field_name,
                     )
                     return self._make_finding(
-                        vector, payload, response, elapsed,
-                        Confidence.CONFIRMED, evidence,
+                        vector,
+                        payload,
+                        response,
+                        elapsed,
+                        Confidence.CONFIRMED,
+                        evidence,
                     )
 
             # Strategy 2: HTTP 500 with a serialization-style payload is suspicious.
@@ -141,8 +143,12 @@ class DeserializationScanner(BaseScanner):
                     field=vector.field_name,
                 )
                 return self._make_finding(
-                    vector, payload, response, elapsed,
-                    Confidence.LIKELY, evidence,
+                    vector,
+                    payload,
+                    response,
+                    elapsed,
+                    Confidence.LIKELY,
+                    evidence,
                 )
 
         except Exception as exc:
