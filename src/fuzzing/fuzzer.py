@@ -100,9 +100,7 @@ class Fuzzer:
 
                 payloads = self._loader.load(vuln_type, max_payloads)
                 if not payloads:
-                    logger.warning(
-                        "No payloads found for {vt}", vt=vuln_type.value
-                    )
+                    logger.warning("No payloads found for {vt}", vt=vuln_type.value)
                     continue
 
                 scanner = _SCANNER_MAP[vuln_type](self._settings, http_client)

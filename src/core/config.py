@@ -14,7 +14,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore[misc]
     """All runtime configuration for the DAST framework."""
 
     model_config = SettingsConfigDict(
@@ -50,9 +50,9 @@ class Settings(BaseSettings):
     # --- Fuzzing ------------------------------------------------------
     payload_types: str = "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect"
     max_payloads_per_vector: int = 50
-    concurrent_vectors: int = 5    # Max vectors scanned in parallel
+    concurrent_vectors: int = 5  # Max vectors scanned in parallel
     concurrent_payloads: int = 10  # Max payloads tested in parallel per scanner
-    requests_per_second: int = 0   # Rate limit (0 = unlimited)
+    requests_per_second: int = 0  # Rate limit (0 = unlimited)
 
     # --- Database -----------------------------------------------------
     db_path: str = ""
@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     dvwa_password: str = "password"
 
     # -----------------------------------------------------------------
-    @field_validator("log_level", mode="before")
+    @field_validator("log_level", mode="before")  # type: ignore[untyped-decorator]
     @classmethod
     def _validate_log_level(cls, v: object) -> str:
         valid = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
@@ -72,7 +72,7 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {valid}, got '{v}'")
         return s
 
-    @field_validator("scan_profile", mode="before")
+    @field_validator("scan_profile", mode="before")  # type: ignore[untyped-decorator]
     @classmethod
     def _validate_profile(cls, v: object) -> str:
         valid = {"default", "aggressive", "stealth"}

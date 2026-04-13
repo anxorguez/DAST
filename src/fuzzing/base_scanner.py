@@ -118,9 +118,7 @@ class BaseScanner(ABC):
     # -------------------------------------------------------------------
 
     @abstractmethod
-    async def _detect(
-        self, vector: AttackVector, payload: str
-    ) -> RawFinding | None:
+    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Attempt to detect a vulnerability for one payload against one vector.
 
         Returns:
@@ -132,9 +130,7 @@ class BaseScanner(ABC):
     # Shared helpers
     # -------------------------------------------------------------------
 
-    async def _retry_detect(
-        self, vector: AttackVector, payload: str
-    ) -> list[RawFinding]:
+    async def _retry_detect(self, vector: AttackVector, payload: str) -> list[RawFinding]:
         """Run _detect up to RETRY_COUNT times and return hits if ≥ CONFIRM_THRESHOLD."""
         confirmed_hits: list[RawFinding] = []
         for _ in range(RETRY_COUNT):
@@ -161,25 +157,19 @@ class BaseScanner(ABC):
         start = time.monotonic()
         if vector.method == "POST":
             if no_retry:
-                response = await self._http.post_no_retry(
-                    vector.target_url, data=params
-                )
+                response = await self._http.post_no_retry(vector.target_url, data=params)
             else:
                 response = await self._http.post(vector.target_url, data=params)
         else:
             if no_retry:
-                response = await self._http.get_no_retry(
-                    vector.target_url, params=params
-                )
+                response = await self._http.get_no_retry(vector.target_url, params=params)
             else:
                 response = await self._http.get(vector.target_url, params=params)
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
         return response, elapsed_ms
 
-    async def _send_baseline(
-        self, vector: AttackVector
-    ) -> tuple[httpx.Response, int]:
+    async def _send_baseline(self, vector: AttackVector) -> tuple[httpx.Response, int]:
         """Send a benign baseline request for comparison."""
         return await self._send(vector, "DAST_BASELINE_1337")
 
