@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.analysis.models import Confidence, RawFinding
+from src.analysis.models import Confidence
 from src.core.config import Settings
 from src.fuzzing.ssrf_scanner import SSRFScanner
 from src.vectors.models import AttackVector, SurfaceType, VulnType
@@ -56,9 +56,7 @@ def mock_http() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_confirmed_on_aws_metadata_content(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_on_aws_metadata_content(settings: Settings, mock_http: MagicMock) -> None:
     """CONFIRMED when response contains AWS metadata key."""
     aws_html = "<html><body>ami-id: ami-0abc1234</body></html>"
     mock_http.get = AsyncMock(return_value=_mock_response(aws_html))
@@ -74,9 +72,7 @@ async def test_confirmed_on_aws_metadata_content(
 
 
 @pytest.mark.asyncio
-async def test_confirmed_on_passwd_content(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_on_passwd_content(settings: Settings, mock_http: MagicMock) -> None:
     """/etc/passwd content in response yields CONFIRMED."""
     passwd_body = "root:x:0:0:root:/root:/bin/bash"
     mock_http.get = AsyncMock(return_value=_mock_response(passwd_body))
@@ -91,9 +87,7 @@ async def test_confirmed_on_passwd_content(
 
 
 @pytest.mark.asyncio
-async def test_likely_on_significant_size_diff(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_likely_on_significant_size_diff(settings: Settings, mock_http: MagicMock) -> None:
     """LIKELY when response size differs significantly from baseline."""
     baseline = _mock_response("Welcome", 200)
     large_response = _mock_response("A" * 500, 200)
@@ -119,9 +113,7 @@ async def test_likely_on_significant_size_diff(
 
 
 @pytest.mark.asyncio
-async def test_no_finding_on_clean_response(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_no_finding_on_clean_response(settings: Settings, mock_http: MagicMock) -> None:
     """No finding on a response that contains no SSRF indicators."""
     clean = _mock_response("<html>normal page</html>", 200)
     mock_http.get = AsyncMock(return_value=clean)

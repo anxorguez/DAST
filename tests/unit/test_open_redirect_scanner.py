@@ -60,9 +60,7 @@ def mock_http() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_confirmed_on_location_header(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_on_location_header(settings: Settings, mock_http: MagicMock) -> None:
     """CONFIRMED when Location header points to probe domain."""
     redirect_resp = _mock_response(
         "",
@@ -81,18 +79,12 @@ async def test_confirmed_on_location_header(
 
 
 @pytest.mark.asyncio
-async def test_likely_on_meta_refresh(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_likely_on_meta_refresh(settings: Settings, mock_http: MagicMock) -> None:
     """LIKELY when meta-refresh redirects to probe domain."""
     meta_body = (
-        '<html><head>'
-        '<meta http-equiv="refresh" content="0; url=https://evil.com/">'
-        '</head></html>'
+        '<html><head><meta http-equiv="refresh" content="0; url=https://evil.com/"></head></html>'
     )
-    mock_http.get_no_retry = AsyncMock(
-        return_value=_mock_response(meta_body, 200)
-    )
+    mock_http.get_no_retry = AsyncMock(return_value=_mock_response(meta_body, 200))
 
     scanner = OpenRedirectScanner(settings, mock_http)
     vector = _make_vector()
@@ -103,14 +95,10 @@ async def test_likely_on_meta_refresh(
 
 
 @pytest.mark.asyncio
-async def test_likely_on_js_redirect(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_likely_on_js_redirect(settings: Settings, mock_http: MagicMock) -> None:
     """LIKELY when JavaScript window.location points to probe domain."""
     js_body = "<script>window.location = 'https://evil.com/';</script>"
-    mock_http.get_no_retry = AsyncMock(
-        return_value=_mock_response(js_body, 200)
-    )
+    mock_http.get_no_retry = AsyncMock(return_value=_mock_response(js_body, 200))
 
     scanner = OpenRedirectScanner(settings, mock_http)
     vector = _make_vector()
@@ -121,9 +109,7 @@ async def test_likely_on_js_redirect(
 
 
 @pytest.mark.asyncio
-async def test_no_finding_on_internal_redirect(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_no_finding_on_internal_redirect(settings: Settings, mock_http: MagicMock) -> None:
     """No finding when redirect goes to the same domain."""
     redirect_resp = _mock_response(
         "",
@@ -140,13 +126,9 @@ async def test_no_finding_on_internal_redirect(
 
 
 @pytest.mark.asyncio
-async def test_no_finding_on_clean_200(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_no_finding_on_clean_200(settings: Settings, mock_http: MagicMock) -> None:
     """No finding on a normal 200 response with no redirect indicators."""
-    mock_http.get_no_retry = AsyncMock(
-        return_value=_mock_response("<html>login page</html>", 200)
-    )
+    mock_http.get_no_retry = AsyncMock(return_value=_mock_response("<html>login page</html>", 200))
 
     scanner = OpenRedirectScanner(settings, mock_http)
     vector = _make_vector()

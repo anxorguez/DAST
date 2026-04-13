@@ -65,11 +65,13 @@ class TestMapFindingToCvss:
             surface=SurfaceType.STORED,
         )
         from src.analysis.cvss import CVSSPrivilegesRequired
+
         cvss = map_finding_to_cvss(raw)
         assert cvss.privileges_required == CVSSPrivilegesRequired.LOW
 
     def test_cmdi_full_impact(self) -> None:
         from src.analysis.cvss import CVSSImpact
+
         raw = _make_raw(VulnType.CMDI)
         cvss = map_finding_to_cvss(raw)
         assert cvss.confidentiality == CVSSImpact.HIGH
@@ -90,6 +92,7 @@ class TestMapFindingToCvss:
 
     def test_deserialization_full_impact(self) -> None:
         from src.analysis.cvss import CVSSImpact
+
         raw = _make_raw(VulnType.DESERIALIZATION)
         cvss = map_finding_to_cvss(raw)
         assert cvss.confidentiality == CVSSImpact.HIGH
@@ -98,6 +101,7 @@ class TestMapFindingToCvss:
 
     def test_path_traversal_confidentiality_high(self) -> None:
         from src.analysis.cvss import CVSSImpact
+
         raw = _make_raw(VulnType.PATH_TRAVERSAL)
         cvss = map_finding_to_cvss(raw)
         assert cvss.confidentiality == CVSSImpact.HIGH

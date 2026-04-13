@@ -75,7 +75,7 @@ class TestCalculateBaseScore:
         assert score == pytest.approx(6.1, abs=0.05)
 
     def test_xss_stored(self) -> None:
-        """AV:N/AC:L/PR:L/UI:R/S:C/C:L/I:L/A:N → 5.4."""
+        """AV:N/AC:L/PR:L/UI:R/S:C/C:L/I:L/A:N → 4.8 per CVSS 3.1 spec formula."""
         v = _vec(
             pr=CVSSPrivilegesRequired.LOW,
             ui=CVSSUserInteraction.REQUIRED,
@@ -84,7 +84,7 @@ class TestCalculateBaseScore:
             i=CVSSImpact.LOW,
         )
         score = calculate_base_score(v)
-        assert score == pytest.approx(5.4, abs=0.05)
+        assert score == pytest.approx(4.8, abs=0.05)
 
     def test_sqli_time_based(self) -> None:
         """AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N → 3.7."""

@@ -53,9 +53,7 @@ def mock_http() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_confirmed_on_passwd_reflection(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_on_passwd_reflection(settings: Settings, mock_http: MagicMock) -> None:
     """CONFIRMED when /etc/passwd content appears in response."""
     passwd_body = "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:"
     mock_http.post_no_retry = AsyncMock(return_value=_mock_response(passwd_body))
@@ -72,9 +70,7 @@ async def test_confirmed_on_passwd_reflection(
 
 
 @pytest.mark.asyncio
-async def test_likely_on_xml_parser_error(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_likely_on_xml_parser_error(settings: Settings, mock_http: MagicMock) -> None:
     """LIKELY when the response contains an XML parser error."""
     error_body = "<error>SAXParseException: external entity reference not allowed</error>"
     mock_http.post_no_retry = AsyncMock(return_value=_mock_response(error_body, 500))
@@ -90,9 +86,7 @@ async def test_likely_on_xml_parser_error(
 
 
 @pytest.mark.asyncio
-async def test_no_finding_on_clean_response(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_no_finding_on_clean_response(settings: Settings, mock_http: MagicMock) -> None:
     """No finding when response contains no XXE indicators."""
     clean = _mock_response("<result>ok</result>", 200)
     mock_http.post_no_retry = AsyncMock(return_value=clean)

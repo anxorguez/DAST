@@ -12,9 +12,7 @@ from src.fuzzing.deserialization_scanner import DeserializationScanner
 from src.vectors.models import AttackVector, SurfaceType, VulnType
 
 
-def _make_vector(
-    url: str = "http://localhost/api", field: str = "data"
-) -> AttackVector:
+def _make_vector(url: str = "http://localhost/api", field: str = "data") -> AttackVector:
     return AttackVector(
         source_url=url,
         target_url=url,
@@ -55,9 +53,7 @@ def mock_http() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_confirmed_java_deser_exception(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_java_deser_exception(settings: Settings, mock_http: MagicMock) -> None:
     """CONFIRMED when Java deserialization exception appears in response."""
     error_body = (
         "java.io.InvalidClassException: com.example.Gadget; "
@@ -75,9 +71,7 @@ async def test_confirmed_java_deser_exception(
 
 
 @pytest.mark.asyncio
-async def test_confirmed_php_unserialize_error(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_php_unserialize_error(settings: Settings, mock_http: MagicMock) -> None:
     """CONFIRMED when PHP unserialize() error appears."""
     php_error = "unserialize(): Error at offset 0 of 10 bytes"
     mock_http.post = AsyncMock(return_value=_mock_response(php_error, 500))
@@ -91,13 +85,9 @@ async def test_confirmed_php_unserialize_error(
 
 
 @pytest.mark.asyncio
-async def test_likely_on_500_with_java_payload(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_likely_on_500_with_java_payload(settings: Settings, mock_http: MagicMock) -> None:
     """LIKELY when HTTP 500 returned for a Java-serialized-looking payload."""
-    mock_http.post = AsyncMock(
-        return_value=_mock_response("Internal Server Error", 500)
-    )
+    mock_http.post = AsyncMock(return_value=_mock_response("Internal Server Error", 500))
 
     scanner = DeserializationScanner(settings, mock_http)
     vector = _make_vector()
@@ -109,13 +99,9 @@ async def test_likely_on_500_with_java_payload(
 
 
 @pytest.mark.asyncio
-async def test_no_finding_on_clean_200(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_no_finding_on_clean_200(settings: Settings, mock_http: MagicMock) -> None:
     """No finding when response is a normal 200 with no error indicators."""
-    mock_http.post = AsyncMock(
-        return_value=_mock_response('{"status":"ok"}', 200)
-    )
+    mock_http.post = AsyncMock(return_value=_mock_response('{"status":"ok"}', 200))
 
     scanner = DeserializationScanner(settings, mock_http)
     vector = _make_vector()

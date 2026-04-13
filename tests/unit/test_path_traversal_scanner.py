@@ -56,9 +56,7 @@ def mock_http() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_confirmed_on_passwd_content(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_on_passwd_content(settings: Settings, mock_http: MagicMock) -> None:
     """/etc/passwd content in response yields CONFIRMED."""
     passwd_body = "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:"
     mock_http.get = AsyncMock(return_value=_mock_response(passwd_body))
@@ -73,9 +71,7 @@ async def test_confirmed_on_passwd_content(
 
 
 @pytest.mark.asyncio
-async def test_confirmed_on_windows_ini(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_confirmed_on_windows_ini(settings: Settings, mock_http: MagicMock) -> None:
     """win.ini content in response yields CONFIRMED."""
     ini_body = "[fonts]\r\n[extensions]\r\nWINDOWS=Win32"
     mock_http.get = AsyncMock(return_value=_mock_response(ini_body))
@@ -89,9 +85,7 @@ async def test_confirmed_on_windows_ini(
 
 
 @pytest.mark.asyncio
-async def test_likely_on_file_not_found_error(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_likely_on_file_not_found_error(settings: Settings, mock_http: MagicMock) -> None:
     """Filesystem error in response yields LIKELY."""
     error_body = "Warning: file_get_contents(): Failed to open stream: No such file or directory"
     mock_http.get = AsyncMock(return_value=_mock_response(error_body, 200))
@@ -105,9 +99,7 @@ async def test_likely_on_file_not_found_error(
 
 
 @pytest.mark.asyncio
-async def test_no_finding_on_clean_response(
-    settings: Settings, mock_http: MagicMock
-) -> None:
+async def test_no_finding_on_clean_response(settings: Settings, mock_http: MagicMock) -> None:
     """No finding when response is clean."""
     mock_http.get = AsyncMock(return_value=_mock_response("<html>file contents</html>"))
 
