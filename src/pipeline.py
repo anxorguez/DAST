@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from loguru import logger
@@ -38,7 +38,7 @@ class Pipeline:
         Side effects:
             Writes findings.db, report.json, and report.html inside scan_dir.
         """
-        started_at = datetime.utcnow()
+        started_at = datetime.now(UTC)
         logger.info(
             "Pipeline started | target={t} | scan_dir={d}",
             t=self._settings.target_url,
@@ -86,7 +86,7 @@ class Pipeline:
         scorer = SeverityScorer()
         scored = scorer.score(validated)
 
-        finished_at = datetime.utcnow()
+        finished_at = datetime.now(UTC)
         report = ScanReport(
             scan_id=self._scan_dir.name,
             target_url=self._settings.target_url,

@@ -11,6 +11,7 @@ These tests are skipped automatically when DVWA is not reachable.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -35,8 +36,34 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _wait_for_dvwa_login(timeout_s: int = 60, poll_interval_s: float = 2.0) -> None:
+    """Block until DVWA's login page responds with HTTP 200 or the timeout expires.
+
+    DVWA redirects to /setup.php until its database is initialised.  This
+    helper polls /login.php so the test only starts once DVWA is truly ready.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            r = httpx.get(
+                "http://localhost:8080/login.php",
+                timeout=5,
+                follow_redirects=False,
+            )
+            if r.status_code == 200:
+                return
+        except Exception:
+            pass
+        time.sleep(poll_interval_s)
+    raise RuntimeError(
+        f"DVWA login page did not return HTTP 200 within {timeout_s}s. "
+        "Make sure the database is initialised via /setup.php?setupDatabase=1."
+    )
+
+
 @pytest.fixture()
 def dvwa_settings(tmp_path: Path) -> Settings:
+    _wait_for_dvwa_login()
     return Settings(
         target_url="http://localhost:8080",
         scan_profile="default",

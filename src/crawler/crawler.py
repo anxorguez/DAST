@@ -142,7 +142,9 @@ class Crawler:
                 if s.auth_success_url not in current:
                     raise AuthenticationError(
                         f"Login redirect verification failed. "
-                        f"Expected URL containing '{s.auth_success_url}', got '{current}'."
+                        f"Expected URL containing '{s.auth_success_url}', got '{current}'. "
+                        f"If using DVWA, the database may not be initialised — "
+                        f"visit /setup.php?setupDatabase=1 before running the scan."
                     )
 
             logger.info("Pre-scan authentication successful")
