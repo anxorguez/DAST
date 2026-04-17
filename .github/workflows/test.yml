@@ -90,11 +90,11 @@ jobs:
 
       - name: Configure DVWA
         run: |
-          curl -s -c /tmp/dvwa.cookies -b /tmp/dvwa.cookies \
-            -d "username=admin&password=password&Login=Login&user_token=" \
-            http://localhost:8080/login.php
-          curl -s -c /tmp/dvwa.cookies -b /tmp/dvwa.cookies \
-            http://localhost:8080/setup.php?setupDatabase=1
+          set -e
+          curl -sf -X POST http://localhost:8080/setup.php \
+            --data "create_db=Create+%2F+Reset+Database"
+          sleep 3
+          curl -sf http://localhost:8080/login.php -o /dev/null
 
       - name: Run integration tests
         env:
