@@ -91,10 +91,15 @@ jobs:
       - name: Configure DVWA
         run: |
           set -e
-          curl -sf -X POST http://localhost:8080/setup.php \
-            --data "create_db=Create+%2F+Reset+Database"
+          echo "Initialising DVWA database..."
+          curl -s --max-time 15 \
+            --request POST \
+            --data "create_db=Create+%2F+Reset+Database" \
+            http://localhost:8080/setup.php
           sleep 3
-          curl -sf http://localhost:8080/login.php -o /dev/null
+          echo "Verifying login page is available..."
+          curl -s --fail http://localhost:8080/login.php | grep -q "login" \
+            && echo "DVWA is ready." || (echo "DVWA login page not found!" && exit 1)
 
       - name: Run integration tests
         env:
