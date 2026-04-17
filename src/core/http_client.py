@@ -41,32 +41,58 @@ class HTTPClient:
     # Public helpers
     # ------------------------------------------------------------------
 
-    @retry(  # type: ignore[untyped-decorator]
+    @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
         reraise=True,
     )
-    async def get(self, url: str, **kwargs: object) -> httpx.Response:
+    async def get(
+        self,
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
         """Perform a GET request with automatic retries."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.get(url, **kwargs)
+        return await self._client.get(url, params=params, headers=headers)
 
-    @retry(  # type: ignore[untyped-decorator]
+    @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
         reraise=True,
     )
-    async def post(self, url: str, **kwargs: object) -> httpx.Response:
+    async def post(
+        self,
+        url: str,
+        *,
+        data: dict[str, str] | None = None,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
         """Perform a POST request with automatic retries."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.post(url, **kwargs)
+        return await self._client.post(url, data=data, content=content, headers=headers)
 
-    async def get_no_retry(self, url: str, **kwargs: object) -> httpx.Response:
+    async def get_no_retry(
+        self,
+        url: str,
+        *,
+        params: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
         """GET without retry (used for time-based measurements)."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.get(url, **kwargs)
+        return await self._client.get(url, params=params, headers=headers)
 
-    async def post_no_retry(self, url: str, **kwargs: object) -> httpx.Response:
+    async def post_no_retry(
+        self,
+        url: str,
+        *,
+        data: dict[str, str] | None = None,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> httpx.Response:
         """POST without retry (used for time-based measurements)."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.post(url, **kwargs)
+        return await self._client.post(url, data=data, content=content, headers=headers)

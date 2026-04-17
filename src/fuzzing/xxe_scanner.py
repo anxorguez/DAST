@@ -157,7 +157,7 @@ class XXEScanner(BaseScanner):
         try:
             response = await self._http.post_no_retry(
                 vector.target_url,
-                data=payload.encode("utf-8"),
+                content=payload.encode("utf-8"),
                 headers=headers,
             )
         except Exception:
