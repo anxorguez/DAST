@@ -91,15 +91,40 @@ jobs:
       - name: Configure DVWA
         run: |
           set -e
-          echo "Initialising DVWA database..."
-          curl -s --max-time 15 \
+
+          echo "--- Initialising DVWA database ---"
+          curl -s --max-time 15 --retry 5 --retry-delay 3 \
             --request POST \
             --data "create_db=Create+%2F+Reset+Database" \
             http://localhost:8080/setup.php
-          sleep 3
-          echo "Verifying login page is available..."
-          curl -s --fail http://localhost:8080/login.php | grep -q "login" \
-            && echo "DVWA is ready." || (echo "DVWA login page not found!" && exit 1)
+
+          echo "--- Polling until login.php returns HTTP 200 ---"
+          TIMEOUT=60
+          INTERVAL=3
+          elapsed=0
+          until curl -s --max-time 5 --retry 5 --retry-delay 3 \
+                   --output /dev/null --write-out "%{http_code}" \
+                   http://localhost:8080/login.php \
+                 | grep -q "^200$"; do
+            if [ "$elapsed" -ge "$TIMEOUT" ]; then
+              echo "ERROR: DVWA login.php did not return 200 after ${TIMEOUT}s"
+              exit 1
+            fi
+            echo "  waiting... (${elapsed}s elapsed)"
+            sleep "$INTERVAL"
+            elapsed=$((elapsed + INTERVAL))
+          done
+          echo "login.php returned 200 after ${elapsed}s"
+
+          echo "--- Verifying /index.php does not redirect to setup.php ---"
+          FINAL_URL=$(curl -s --max-time 10 --retry 5 --retry-delay 3 \
+            -L --write-out "%{url_effective}" --output /dev/null \
+            http://localhost:8080/index.php)
+          if echo "$FINAL_URL" | grep -q "setup\.php"; then
+            echo "ERROR: /index.php still redirects to setup.php (DB not ready). Final URL: $FINAL_URL"
+            exit 1
+          fi
+          echo "DB fully initialised. Final URL: $FINAL_URL"
 
       - name: Run integration tests
         env:
