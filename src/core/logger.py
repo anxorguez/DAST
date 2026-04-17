@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 _LOG_FORMAT = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {name}:{line} | {message}"
 
@@ -43,7 +47,7 @@ def setup_logger(log_level: str = "INFO", log_file: Path | None = None) -> None:
         )
 
 
-def get_logger(name: str) -> logger:
+def get_logger(name: str) -> Logger:
     """Return a logger bound to a specific module name.
 
     Usage::
