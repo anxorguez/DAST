@@ -14,7 +14,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):  # type: ignore[misc]
+class Settings(BaseSettings):
     """All runtime configuration for the DAST framework."""
 
     model_config = SettingsConfigDict(
@@ -63,7 +63,7 @@ class Settings(BaseSettings):  # type: ignore[misc]
     dvwa_password: str = "password"
 
     # -----------------------------------------------------------------
-    @field_validator("log_level", mode="before")  # type: ignore[untyped-decorator]
+    @field_validator("log_level", mode="before")
     @classmethod
     def _validate_log_level(cls, v: object) -> str:
         valid = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
@@ -72,7 +72,7 @@ class Settings(BaseSettings):  # type: ignore[misc]
             raise ValueError(f"log_level must be one of {valid}, got '{v}'")
         return s
 
-    @field_validator("scan_profile", mode="before")  # type: ignore[untyped-decorator]
+    @field_validator("scan_profile", mode="before")
     @classmethod
     def _validate_profile(cls, v: object) -> str:
         valid = {"default", "aggressive", "stealth"}

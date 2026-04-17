@@ -30,14 +30,14 @@ def _make_scan_id() -> str:
     return f"{timestamp}_{rand_hex}"
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})  # type: ignore[untyped-decorator]
-@click.option(  # type: ignore[untyped-decorator]
+@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.option(
     "--url",
     required=True,
     envvar="TARGET_URL",
     help="Target URL to scan (e.g. http://dvwa).",
 )
-@click.option(  # type: ignore[untyped-decorator]
+@click.option(
     "--profile",
     default="default",
     show_default=True,
@@ -45,13 +45,13 @@ def _make_scan_id() -> str:
     type=click.Choice(["default", "aggressive", "stealth"], case_sensitive=False),
     help="Scan profile controlling depth, payload count, and timeouts.",
 )
-@click.option(  # type: ignore[untyped-decorator]
+@click.option(
     "--output",
     default=None,
     envvar="OUTPUT_DIR",
     help="Directory where scan output folders are created. Defaults to ./reports.",
 )
-@click.option(  # type: ignore[untyped-decorator]
+@click.option(
     "--log-level",
     default=None,
     envvar="LOG_LEVEL",
