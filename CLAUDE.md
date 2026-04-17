@@ -175,3 +175,26 @@ Nunca hardcodear URLs, rutas o credenciales en el código.
 - Tráfico saliente del contenedor limitado por `entrypoint.sh` vía iptables
 - No usar `shell=True` en subprocess
 - Credenciales solo en `.env`, nunca commiteadas
+
+
+## Prototipos de Commits Después de Cada Tarea
+
+Al terminar cualquier tarea, muestra un bloque de commits listo para copiar en el chat (NO lo ejecutes por bash). Formato:
+
+---
+
+**Commits para esta tarea:**
+
+Commit 1 — `<tipo>(<scope>): <descripción>`
+- `git commit -m "<tipo>(<scope>): <descripción>"`
+
+Commit 2 — `<tipo>(<scope>): <descripción>`
+- `git commit -m "<tipo>(<scope>): <descripción>"`
+
+---
+
+Reglas:
+- Usar formato Conventional Commits: `feat`, `fix`, `docs`, `test`, `refactor`, `ci`, `chore`.
+- Un commit por cambio lógico (no agrupar todo en uno).
+- Nunca ejecutar los comandos git — solo mostrarlos para hacer ctrl+c ctrl+v.
+- Poner el bloque al final de la respuesta, después de todas las explicaciones.
