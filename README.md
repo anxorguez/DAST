@@ -217,6 +217,33 @@ All settings are read from environment variables (.env file or shell environment
 Scan profiles (config/default.yaml, config/aggressive.yaml, config/stealth.yaml)
 override these defaults. Profile values are in turn overridden by environment variables.
 
+### Authenticating against DVWA
+
+DVWA redirects every page to `login.php` until a session cookie is set, so a scan
+with `AUTH_ENABLED=false` will only fuzz the login form and will not reach any of
+the vulnerable endpoints (sqli, xss_r, xss_s, exec, file_inclusion, ...). A
+warning is logged when the crawl stops at a single login page without auth
+enabled.
+
+To scan DVWA properly, add the following block to your `.env`:
+
+```env
+# --- Authentication against DVWA ---
+AUTH_ENABLED=true
+AUTH_URL=http://dvwa/login.php
+AUTH_USERNAME=admin
+AUTH_PASSWORD=password
+AUTH_USERNAME_FIELD=username
+AUTH_PASSWORD_FIELD=password
+AUTH_SUCCESS_URL=http://dvwa/index.php
+```
+
+With these values the crawler logs in once before the BFS begins, reuses the
+`PHPSESSID` cookie for every subsequent request, and is able to discover and
+fuzz the vulnerable pages: `/vulnerabilities/sqli/?id=...`,
+`/vulnerabilities/xss_r/?name=...`, `/vulnerabilities/xss_s/`,
+`/vulnerabilities/exec/`, `/vulnerabilities/fi/?page=...`, and others.
+
 ### Scan Profile Comparison
 
 | Setting                 | default | aggressive | stealth |
