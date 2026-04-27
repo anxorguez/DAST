@@ -7,6 +7,7 @@ import time
 from abc import ABC, abstractmethod
 
 import httpx
+from loguru import logger
 
 from src.analysis.models import Confidence, RawFinding
 from src.core.config import Settings
@@ -17,6 +18,32 @@ from src.vectors.models import AttackVector, VulnType
 RETRY_COUNT = 3
 # Minimum number of successful detections out of RETRY_COUNT to confirm.
 CONFIRM_THRESHOLD = 2
+# Abort a scanner on a vector after this many complete payload cycles produce
+# zero valid HTTP responses (only network-level errors).  Protects against
+# dead or unreachable endpoints that would otherwise exhaust every payload.
+#
+# IMPORTANT: the abort heuristic only counts *payload* requests, not baseline
+# requests.  The baseline payload ``DAST_BASELINE_1337`` is benign and almost
+# always succeeds even when the real payloads time out, so mixing it into the
+# tally would mask a stuck endpoint and prevent the abort from ever firing.
+NET_ERROR_ABORT_THRESHOLD = 3
+
+
+def _format_exc(exc: BaseException) -> str:
+    """Format *exc* for logging with type + meaningful message.
+
+    ``str(exc)`` is empty for several httpx exception classes (notably
+    ``ReadTimeout`` and ``ConnectTimeout``) — falling back to ``repr`` keeps
+    log lines diagnosable when the message is missing.  The message is
+    truncated to keep DEBUG output manageable.
+    """
+    msg = str(exc)
+    if not msg:
+        msg = repr(exc)
+    if len(msg) > 200:
+        msg = msg[:200] + "..."
+    return f"{type(exc).__name__}: {msg}"
+
 
 # Keywords that identify time-based payloads.  These must run sequentially
 # because parallel execution corrupts timing measurements.
@@ -60,6 +87,12 @@ class BaseScanner(ABC):
         self._http = http_client
         # Lock ensures time-based payloads don't run concurrently.
         self._time_based_lock: asyncio.Lock = asyncio.Lock()
+        # Per-scan counters, reset at the start of each scan() call.
+        # ``_payload_*`` counters intentionally exclude baseline requests so
+        # the early-abort heuristic isn't masked by a successful baseline
+        # against a stuck endpoint.  See ``_send`` and the abort check below.
+        self._payload_net_error_tally: int = 0
+        self._payload_response_tally: int = 0
 
     # -------------------------------------------------------------------
     # Public interface
@@ -77,6 +110,18 @@ class BaseScanner(ABC):
         Settings (or the optional external *semaphore*).  Time-based
         payloads bypass the pool and run behind a dedicated serial lock.
 
+        Early abort: if at least NET_ERROR_ABORT_THRESHOLD complete payload
+        cycles have been attempted and every payload _send call raised a
+        network exception (no valid HTTP response at all from a real payload),
+        remaining payloads are skipped.  This avoids exhausting all payloads
+        on dead/unreachable endpoints.
+
+        Baseline requests (sent via :meth:`_send_baseline`) are deliberately
+        excluded from these counters.  The baseline payload is benign and
+        almost always returns a valid response — mixing it into the tally
+        would prevent the abort from ever firing when the real payloads
+        consistently time out.
+
         Args:
             vector: The injection target.
             payloads: Payload strings to test.
@@ -86,6 +131,10 @@ class BaseScanner(ABC):
         Returns:
             All confirmed RawFinding instances for this vector.
         """
+        # Reset payload-only counters for this scan call.
+        self._payload_net_error_tally = 0
+        self._payload_response_tally = 0
+
         max_concurrent = max(1, self._settings.concurrent_payloads)
         payload_sem = asyncio.Semaphore(max_concurrent)
 
@@ -93,14 +142,22 @@ class BaseScanner(ABC):
         findings_lock = asyncio.Lock()
 
         rps = self._settings.requests_per_second
+        abort = asyncio.Event()
+        payloads_attempted = 0
 
         async def _scan_one(payload: str) -> None:
+            nonlocal payloads_attempted
+            if abort.is_set():
+                return
+
             if _is_time_based(payload):
                 # Time-based payloads run serially to preserve timing accuracy.
                 async with self._time_based_lock:
                     hits = await self._retry_detect(vector, payload)
             else:
                 async with payload_sem:
+                    if abort.is_set():
+                        return
                     if rps > 0:
                         await asyncio.sleep(1.0 / rps)
                     hits = await self._retry_detect(vector, payload)
@@ -108,6 +165,29 @@ class BaseScanner(ABC):
             if hits:
                 async with findings_lock:
                     findings.extend(hits)
+
+            payloads_attempted += 1
+            # Abort heuristic: only payload responses count toward
+            # ``_payload_response_tally``.  Baseline requests are excluded
+            # because they use a benign string and would otherwise mask a
+            # stuck endpoint where every real payload times out.
+            if (
+                not abort.is_set()
+                and payloads_attempted >= NET_ERROR_ABORT_THRESHOLD
+                and self._payload_response_tally == 0
+            ):
+                logger.warning(
+                    "Early abort: {vt} scanner on {url} [{field}] — "
+                    "{a} payload(s) attempted with 0 valid HTTP responses "
+                    "({e} network error(s)); skipping {rem} remaining payload(s)",
+                    vt=self.VULN_TYPE.value,
+                    url=vector.target_url,
+                    field=vector.field_name,
+                    a=payloads_attempted,
+                    e=self._payload_net_error_tally,
+                    rem=len(payloads) - payloads_attempted,
+                )
+                abort.set()
 
         tasks = [asyncio.create_task(_scan_one(p)) for p in payloads]
         await asyncio.gather(*tasks)
@@ -146,8 +226,15 @@ class BaseScanner(ABC):
         vector: AttackVector,
         payload: str,
         no_retry: bool = False,
+        is_baseline: bool = False,
     ) -> tuple[httpx.Response, int]:
         """Send an HTTP request with *payload* injected into *vector*.
+
+        For real payloads (``is_baseline=False``), updates
+        ``_payload_response_tally`` on success and ``_payload_net_error_tally``
+        on any network exception, enabling the early-abort check in
+        :meth:`scan`.  Baseline requests bypass these counters by design — see
+        the docstring of :meth:`scan` for the rationale.
 
         Returns:
             Tuple of (response, elapsed_milliseconds).
@@ -155,23 +242,34 @@ class BaseScanner(ABC):
         params = {**vector.extra_params, vector.field_name: payload}
 
         start = time.monotonic()
-        if vector.method == "POST":
-            if no_retry:
-                response = await self._http.post_no_retry(vector.target_url, data=params)
+        try:
+            if vector.method == "POST":
+                if no_retry:
+                    response = await self._http.post_no_retry(vector.target_url, data=params)
+                else:
+                    response = await self._http.post(vector.target_url, data=params)
             else:
-                response = await self._http.post(vector.target_url, data=params)
-        else:
-            if no_retry:
-                response = await self._http.get_no_retry(vector.target_url, params=params)
-            else:
-                response = await self._http.get(vector.target_url, params=params)
+                if no_retry:
+                    response = await self._http.get_no_retry(vector.target_url, params=params)
+                else:
+                    response = await self._http.get(vector.target_url, params=params)
+        except Exception:
+            if not is_baseline:
+                self._payload_net_error_tally += 1
+            raise
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
+        if not is_baseline:
+            self._payload_response_tally += 1
         return response, elapsed_ms
 
     async def _send_baseline(self, vector: AttackVector) -> tuple[httpx.Response, int]:
-        """Send a benign baseline request for comparison."""
-        return await self._send(vector, "DAST_BASELINE_1337")
+        """Send a benign baseline request for comparison.
+
+        Baseline requests are excluded from the abort heuristic counters; see
+        :meth:`scan` for why.
+        """
+        return await self._send(vector, "DAST_BASELINE_1337", is_baseline=True)
 
     @staticmethod
     def _truncate(text: str, max_len: int = 500) -> str:

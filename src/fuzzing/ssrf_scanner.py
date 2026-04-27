@@ -11,7 +11,7 @@ from src.core.config import Settings
 from src.core.http_client import HTTPClient
 from src.vectors.models import AttackVector, VulnType
 
-from .base_scanner import BaseScanner
+from .base_scanner import BaseScanner, _format_exc
 
 # ---------------------------------------------------------------------------
 # Detection signatures
@@ -132,7 +132,7 @@ class SSRFScanner(BaseScanner):
                 "SSRFScanner error on {url} [{field}]: {err}",
                 url=vector.target_url,
                 field=vector.field_name,
-                err=exc,
+                err=_format_exc(exc),
             )
 
         return None
