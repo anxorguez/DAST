@@ -21,7 +21,7 @@ from src.analysis.validator import Validator
 from src.core.config import Settings
 from src.crawler.crawler import Crawler, StoredXSSHit
 from src.fuzzing.fuzzer import Fuzzer
-from src.vectors.models import AttackVector, SurfaceType, VulnType
+from src.vectors.models import AttackVector, CrawledPage, SurfaceType, VulnType
 from src.vectors.vector_analyzer import VectorAnalyzer
 
 
@@ -51,6 +51,7 @@ class Pipeline:
         crawler = Crawler(self._settings)
         pages = await crawler.crawl()
         logger.info("Module 1 complete: {n} page(s) crawled", n=len(pages))
+        self._warn_if_login_wall(pages)
 
         # ------------------------------------------------------------------
         # Module 2 — Vector identification
@@ -62,7 +63,7 @@ class Pipeline:
         # ------------------------------------------------------------------
         # Module 3 — Fuzzing
         # ------------------------------------------------------------------
-        fuzzer = Fuzzer(self._settings)
+        fuzzer = Fuzzer(self._settings, session_cookies=crawler.session_cookies)
         raw_findings = await fuzzer.run(vectors)
 
         # Module 3b — Stored XSS second pass
@@ -169,3 +170,34 @@ class Pipeline:
         for f in findings:
             summary[f.severity.value] += 1
         return summary
+
+    def _warn_if_login_wall(self, pages: list[CrawledPage]) -> None:
+        """Warn when the crawl stopped at a single login page without auth enabled.
+
+        If the only page the crawler reached contains both a username and a
+        password input (typical login form) and AUTH_ENABLED is false, the scan
+        will concentrate fuzzing on the login form and miss the rest of the
+        application. Surface this clearly so the operator can enable pre-scan
+        authentication.
+        """
+        if self._settings.auth_enabled or len(pages) != 1:
+            return
+
+        page = pages[0]
+        has_password = any(f.field_type == "password" for form in page.forms for f in form.fields)
+        has_username = any(
+            f.name.lower() in {"username", "user", "email", "login"}
+            for form in page.forms
+            for f in form.fields
+        )
+        if not (has_password and has_username):
+            return
+
+        logger.warning(
+            "Crawl stopped at what looks like a login page ({url}) but "
+            "AUTH_ENABLED is false. Fuzzing will only cover the login form and "
+            "will miss the rest of the application. To scan authenticated pages, "
+            "set AUTH_ENABLED=true and AUTH_URL/AUTH_USERNAME/AUTH_PASSWORD/"
+            "AUTH_SUCCESS_URL in your .env (see README).",
+            url=page.url,
+        )

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections import deque
 from datetime import datetime
-from urllib.parse import urlparse
+from typing import Any
+from urllib.parse import urljoin, urlparse
 
 from loguru import logger
 from playwright.async_api import BrowserContext, Page, Request
@@ -51,6 +52,19 @@ class Crawler:
         parsed = urlparse(settings.target_url)
         self._target_hostname = parsed.hostname or ""
         self._visited: set[str] = set()
+        # Cookies captured from the authenticated browser context after crawl().
+        # Consumers (e.g. the Fuzzer's HTTPClient) use these to inherit the
+        # session established by pre-scan login. Each entry is Playwright's
+        # cookie dict: {name, value, domain, path, ...}.
+        self._session_cookies: list[dict[str, Any]] = []
+
+    @property
+    def session_cookies(self) -> list[dict[str, Any]]:
+        """Cookies captured from the authenticated browser context after crawl().
+
+        Empty if authentication was not enabled or crawl() has not yet run.
+        """
+        return list(self._session_cookies)
 
     # -------------------------------------------------------------------
     # Public interface
@@ -72,9 +86,22 @@ class Crawler:
             try:
                 if self._settings.auth_enabled:
                     await self._authenticate(context)
+                    await self._set_dvwa_security_level(context)
+                    # Capture cookies *immediately* after authenticating and
+                    # before the BFS crawl. The BFS may follow destructive
+                    # links such as /logout.php which silently invalidate the
+                    # server-side session — if we captured afterwards, the
+                    # Fuzzer would inherit an unauthenticated cookie and every
+                    # request would bounce back to the login page.
+                    raw_cookies = await context.cookies()
+                    self._session_cookies = [dict(c) for c in raw_cookies]
 
                 pages = await self._bfs_crawl(context)
-                logger.info("Crawl complete: visited {n} pages", n=len(pages))
+                logger.info(
+                    "Crawl complete: visited {n} pages | session cookies captured: {c}",
+                    n=len(pages),
+                    c=len(self._session_cookies),
+                )
                 return pages
             finally:
                 await context.close()
@@ -99,6 +126,7 @@ class Crawler:
             try:
                 if self._settings.auth_enabled:
                     await self._authenticate(context)
+                    await self._set_dvwa_security_level(context)
 
                 urls_to_check = list(self._visited) or [self._settings.target_url]
 
@@ -129,6 +157,13 @@ class Crawler:
         try:
             await page.goto(s.auth_url, wait_until="domcontentloaded")
 
+            # DVWA redirects to /setup.php before the login form when the DB is not
+            # initialised, or on the first browser visit after a fresh DB creation.
+            if "setup.php" in page.url:
+                logger.info("DVWA setup.php detected before login — initialising database")
+                await self._dvwa_db_init(page)
+                await page.goto(s.auth_url, wait_until="domcontentloaded")
+
             username_selector = f"[name='{s.auth_username_field}']"
             password_selector = f"[name='{s.auth_password_field}']"
 
@@ -136,6 +171,17 @@ class Crawler:
             await page.fill(password_selector, s.auth_password)
             await page.press(password_selector, "Enter")
             await page.wait_for_load_state("networkidle")
+
+            # DVWA can redirect to /setup.php on the first login after a fresh DB
+            # initialisation even when the tables already exist.
+            if "setup.php" in page.url:
+                logger.info("DVWA setup.php detected after login — re-initialising database")
+                await self._dvwa_db_init(page)
+                await page.goto(s.auth_url, wait_until="domcontentloaded")
+                await page.fill(username_selector, s.auth_username)
+                await page.fill(password_selector, s.auth_password)
+                await page.press(password_selector, "Enter")
+                await page.wait_for_load_state("networkidle")
 
             if s.auth_success_url:
                 current = page.url
@@ -154,6 +200,60 @@ class Crawler:
             raise AuthenticationError(f"Authentication error: {exc}") from exc
         finally:
             await page.close()
+
+    async def _dvwa_db_init(self, page: Page) -> None:
+        """Submit DVWA's 'Create / Reset Database' form via Playwright.
+
+        Called automatically when /setup.php is detected during authentication.
+        Uses the browser session so PHP session state is consistent.
+        """
+        setup_url = urljoin(self._settings.target_url, "/setup.php")
+        if "setup.php" not in page.url:
+            await page.goto(setup_url, wait_until="domcontentloaded")
+        try:
+            await page.click("input[name='create_db']", timeout=5000)
+            await page.wait_for_load_state("networkidle", timeout=30000)
+            logger.info("DVWA database initialised via browser session")
+        except Exception as exc:
+            logger.debug("DVWA create_db click failed (may already be ready): {e}", e=exc)
+
+    async def _set_dvwa_security_level(self, context: BrowserContext) -> None:
+        """Best-effort: set DVWA's security level on the authenticated session.
+
+        DVWA defaults to the 'impossible' security level after login, which
+        disables every intentional vulnerability. For a scan to find anything
+        the level must be lowered. This step submits the form at /security.php
+        and logs silently if the endpoint is absent (target is not DVWA).
+        """
+        level = self._settings.dvwa_security_level
+        if not level:
+            return
+
+        security_url = urljoin(self._settings.target_url, "/security.php")
+        page = await context.new_page()
+        try:
+            await page.goto(security_url, wait_until="domcontentloaded")
+            if "security.php" not in page.url:
+                # Redirected elsewhere — the target is probably not DVWA.
+                logger.debug(
+                    "Skipping DVWA security level (no /security.php at {u})",
+                    u=security_url,
+                )
+                return
+            await page.select_option("select[name='security']", level)
+            await page.click("input[name='seclev_submit']")
+            await page.wait_for_load_state("networkidle", timeout=5_000)
+            logger.info("DVWA security level set to '{l}'", l=level)
+        except Exception as exc:
+            logger.debug(
+                "Could not set DVWA security level (target may not be DVWA): {err}",
+                err=exc,
+            )
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
 
     async def _bfs_crawl(self, context: BrowserContext) -> list[CrawledPage]:
         """Breadth-first traversal starting from TARGET_URL."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from loguru import logger
 
@@ -43,9 +44,14 @@ class Fuzzer:
     sent so the pipeline can perform a stored XSS second pass.
     """
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        session_cookies: list[dict[str, Any]] | None = None,
+    ) -> None:
         self._settings = settings
         self._loader = PayloadLoader()
+        self._session_cookies = session_cookies or []
         # Public attribute: XSS payloads injected into the target during fuzzing.
         self.injected_xss_payloads: list[str] = []
         self._xss_lock = asyncio.Lock()
@@ -62,7 +68,11 @@ class Fuzzer:
         max_concurrent = max(1, self._settings.concurrent_vectors)
         vector_sem = asyncio.Semaphore(max_concurrent)
 
-        async with HTTPClient(timeout=self._settings.request_timeout) as http_client:
+        async with HTTPClient(
+            timeout=self._settings.request_timeout,
+            max_retries=self._settings.scanner_http_retries,
+            session_cookies=self._session_cookies,
+        ) as http_client:
             tasks = [
                 asyncio.create_task(self._fuzz_vector(vector_sem, vector, http_client))
                 for vector in vectors
@@ -104,7 +114,27 @@ class Fuzzer:
                     continue
 
                 scanner = _SCANNER_MAP[vuln_type](self._settings, http_client)
-                vt_findings = await scanner.scan(vector, payloads)
+                # Hard wall-clock cap per (vector × scanner).  If a single
+                # endpoint stalls (slow target, tarpit, broken vhost), we
+                # cancel the scanner and move on — the early-abort heuristic
+                # in BaseScanner handles the common case but doesn't help if
+                # individual requests hang for tens of seconds each.
+                timeout_s = max(1, self._settings.scanner_vector_timeout_seconds)
+                try:
+                    vt_findings = await asyncio.wait_for(
+                        scanner.scan(vector, payloads),
+                        timeout=timeout_s,
+                    )
+                except TimeoutError:
+                    logger.warning(
+                        "Scanner {vt} timed out after {t}s on {url} [{field}]; "
+                        "skipping remaining payloads for this scanner",
+                        vt=vuln_type.value,
+                        t=timeout_s,
+                        url=vector.target_url,
+                        field=vector.field_name,
+                    )
+                    vt_findings = []
                 findings.extend(vt_findings)
 
                 if vt_findings:
