@@ -159,8 +159,46 @@ _OPEN_REDIRECT_HINT_NAMES: frozenset[str] = frozenset(
     }
 )
 
-# Field types that are not normally injectable (skip them).
-_SKIP_TYPES: frozenset[str] = frozenset({"submit", "button", "image", "reset", "file"})
+# Field types that are not normally injectable (skip as fuzz target).
+# NOTE: "submit" is intentionally kept out of _SKIP_AS_EXTRA — many PHP apps
+# (notably DVWA) gate their vulnerable code behind isset($_GET['Submit']),
+# so the submit button's name/value must stay in extra_params for the
+# backend to reach the vulnerable branch.
+_SKIP_AS_TARGET: frozenset[str] = frozenset({"submit", "button", "image", "reset", "file"})
+_SKIP_AS_EXTRA: frozenset[str] = frozenset({"button", "image", "reset", "file"})
+
+# Paths that should never produce attack vectors.  Two motivations:
+#   * documentation/help pages (instructions.php, README, *.md) accept a
+#     ``doc=...`` parameter that maps to a server-side file include — fuzzing
+#     it produces no exploitable signal but can lock up the server reading
+#     gigabyte-sized changelogs;
+#   * administrative endpoints (security.php, setup.php, phpinfo.php) accept
+#     POSTs that mutate global state (DVWA's setup.php truncates the database
+#     on each request), so fuzzing them corrupts the target between scans.
+#
+# Match is case-insensitive against the URL path (basename or full path
+# component, depending on the pattern).  Add more paths here as the framework
+# is exercised against new applications.
+_BLACKLISTED_PATH_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"(^|/)instructions\.php$",
+        r"(^|/)phpinfo\.php$",
+        r"(^|/)setup\.php$",
+        r"(^|/)security\.php$",
+        r"(^|/)readme(\.md|\.txt|\.rst)?$",
+        r"\.md$",
+        r"\.dist$",
+        r"(^|/)docker-compose\.ya?ml$",
+        r"(^|/)compose\.ya?ml$",
+    )
+)
+
+
+def _path_is_blacklisted(url: str) -> bool:
+    """Return True if *url*'s path matches any blacklisted pattern."""
+    path = urlparse(url).path
+    return any(p.search(path) for p in _BLACKLISTED_PATH_PATTERNS)
 
 
 class VectorAnalyzer:
@@ -195,14 +233,20 @@ class VectorAnalyzer:
 
         # 1. Vectors from HTML forms
         for form in page.forms:
+            if _path_is_blacklisted(form.action_url):
+                logger.debug(
+                    "Vector skipped (blacklisted path): {url}",
+                    url=form.action_url,
+                )
+                continue
             for frm_field in form.fields:
-                if frm_field.field_type in _SKIP_TYPES:
+                if frm_field.field_type in _SKIP_AS_TARGET:
                     continue
 
                 extra = {
                     f.name: (f.default_value or "")
                     for f in form.fields
-                    if f.name != frm_field.name and f.field_type not in _SKIP_TYPES
+                    if f.name != frm_field.name and f.field_type not in _SKIP_AS_EXTRA
                 }
                 vectors.append(
                     AttackVector(
@@ -224,6 +268,13 @@ class VectorAnalyzer:
                 )
 
         # 2. Vectors from URL query string parameters
+        if _path_is_blacklisted(page.url):
+            logger.debug(
+                "URL params skipped (blacklisted path): {url}",
+                url=page.url,
+            )
+            return vectors
+
         parsed = urlparse(page.url)
         if parsed.query:
             all_params = {
