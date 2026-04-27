@@ -149,23 +149,23 @@
       <h2>Summary</h2>
       <div class="summary-grid">
         <div class="card CRITICAL">
-          <div class="count">{{ report.summary.get("CRITICAL", 0) }}</div>
+          <div class="count">{{ report.summary.get("critical", 0) }}</div>
           <div class="label">Critical</div>
         </div>
         <div class="card HIGH">
-          <div class="count">{{ report.summary.get("HIGH", 0) }}</div>
+          <div class="count">{{ report.summary.get("high", 0) }}</div>
           <div class="label">High</div>
         </div>
         <div class="card MEDIUM">
-          <div class="count">{{ report.summary.get("MEDIUM", 0) }}</div>
+          <div class="count">{{ report.summary.get("medium", 0) }}</div>
           <div class="label">Medium</div>
         </div>
         <div class="card LOW">
-          <div class="count">{{ report.summary.get("LOW", 0) }}</div>
+          <div class="count">{{ report.summary.get("low", 0) }}</div>
           <div class="label">Low</div>
         </div>
         <div class="card INFO">
-          <div class="count">{{ report.summary.get("INFO", 0) }}</div>
+          <div class="count">{{ report.summary.get("info", 0) }}</div>
           <div class="label">Info</div>
         </div>
       </div>
@@ -194,8 +194,8 @@
           {% for f in report.findings | sort(attribute='cvss_score', reverse=True) %}
           <tr>
             <td>{{ loop.index }}</td>
-            <td><span class="badge {{ f.severity.value }}">{{ f.severity.value }}</span></td>
-            <td><span class="badge {{ f.raw.vuln_type.value }}">{{ f.raw.vuln_type.value }}</span></td>
+            <td><span class="badge {{ f.severity.value | upper }}">{{ f.severity.value }}</span></td>
+            <td><span class="badge {{ f.raw.vuln_type.value | upper }}">{{ f.raw.vuln_type.value }}</span></td>
             <td><code>{{ f.raw.vector.target_url }}</code></td>
             <td><code>{{ f.raw.vector.field_name }}</code></td>
             <td><code>{{ f.raw.payload | truncate(80) }}</code></td>

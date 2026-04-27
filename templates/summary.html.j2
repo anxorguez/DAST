@@ -33,11 +33,11 @@
       <tr><th>Severity</th><th>Count</th></tr>
     </thead>
     <tbody>
-      <tr><td class="CRITICAL">CRITICAL</td><td>{{ report.summary.get("CRITICAL", 0) }}</td></tr>
-      <tr><td class="HIGH">HIGH</td><td>{{ report.summary.get("HIGH", 0) }}</td></tr>
-      <tr><td class="MEDIUM">MEDIUM</td><td>{{ report.summary.get("MEDIUM", 0) }}</td></tr>
-      <tr><td class="LOW">LOW</td><td>{{ report.summary.get("LOW", 0) }}</td></tr>
-      <tr><td class="INFO">INFO</td><td>{{ report.summary.get("INFO", 0) }}</td></tr>
+      <tr><td class="CRITICAL">CRITICAL</td><td>{{ report.summary.get("critical", 0) }}</td></tr>
+      <tr><td class="HIGH">HIGH</td><td>{{ report.summary.get("high", 0) }}</td></tr>
+      <tr><td class="MEDIUM">MEDIUM</td><td>{{ report.summary.get("medium", 0) }}</td></tr>
+      <tr><td class="LOW">LOW</td><td>{{ report.summary.get("low", 0) }}</td></tr>
+      <tr><td class="INFO">INFO</td><td>{{ report.summary.get("info", 0) }}</td></tr>
     </tbody>
   </table>
 
@@ -48,7 +48,7 @@
     <tbody>
       {% for f in report.findings | sort(attribute='cvss_score', reverse=True) %}
       <tr>
-        <td class="{{ f.severity.value }}">{{ f.severity.value }}</td>
+        <td class="{{ f.severity.value | upper }}">{{ f.severity.value }}</td>
         <td>{{ f.vuln_type.value }}</td>
         <td>{{ f.target_url }}</td>
         <td>{{ f.field_name }}</td>

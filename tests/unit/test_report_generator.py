@@ -68,7 +68,7 @@ def _make_report(scan_dir: Path) -> ScanReport:
         pages_crawled=5,
         vectors_found=3,
         findings=[finding],
-        summary={"CRITICAL": 1},
+        summary={"critical": 1, "high": 0, "medium": 0, "low": 0, "info": 0},
     )
 
 
@@ -122,6 +122,51 @@ async def test_sqlite_report_written(tmp_path: Path) -> None:
         ) as cursor:
             row = await cursor.fetchone()
             assert row is not None
+
+
+@pytest.mark.asyncio
+async def test_html_summary_cards_match_finding_counts(tmp_path: Path) -> None:
+    """Regression: summary card counts must match the number of findings.
+
+    The pipeline builds the summary dict with lowercase keys (``Severity.value``),
+    but earlier versions of the templates looked up uppercase keys and always
+    got the default 0 — rendering "Findings (40)" alongside five cards showing
+    0 / 0 / 0 / 0 / 0.
+    """
+    settings = _make_settings(tmp_path)
+    vector = _make_vector()
+    raw = RawFinding(
+        vector=vector,
+        vuln_type=VulnType.XSS,
+        payload="<img src=x onerror=alert(1)>",
+        response_snippet="reflected",
+        confidence=Confidence.LIKELY,
+        evidence="payload reflected",
+        response_time_ms=50,
+        found_at=datetime.utcnow(),
+    )
+    findings = [
+        ValidatedFinding(raw=raw, severity=Severity.MEDIUM, cvss_score=6.1) for _ in range(3)
+    ]
+    report = ScanReport(
+        scan_id="summary_regression",
+        target_url="http://localhost:8080",
+        started_at=datetime.utcnow(),
+        finished_at=datetime.utcnow(),
+        pages_crawled=1,
+        vectors_found=1,
+        findings=findings,
+        summary={"critical": 0, "high": 0, "medium": 3, "low": 0, "info": 0},
+    )
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+
+    # The MEDIUM card must show the real count of 3, not the default 0.
+    assert '<div class="card MEDIUM">\n          <div class="count">3</div>' in html
+    # The CRITICAL card must still show 0 (no critical findings).
+    assert '<div class="card CRITICAL">\n          <div class="count">0</div>' in html
 
 
 @pytest.mark.asyncio
