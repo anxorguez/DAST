@@ -13,36 +13,11 @@ from src.core.config import Settings
 from src.core.http_client import HTTPClient
 from src.vectors.models import AttackVector, VulnType
 
-from .base_scanner import BaseScanner
+from .base_scanner import BaseScanner, _format_exc
 
 # ---------------------------------------------------------------------------
 # Patterns that indicate the payload was reflected without encoding.
 # ---------------------------------------------------------------------------
-
-# Dangerous tag names that are meaningful in a reflected XSS context.
-_DANGEROUS_TAGS: tuple[str, ...] = (
-    "script",
-    "svg",
-    "img",
-    "iframe",
-    "body",
-    "video",
-    "audio",
-    "details",
-    "marquee",
-    "math",
-)
-
-# Event handler attribute prefixes (e.g. "onerror=", "onload=").
-_EVENT_HANDLERS: tuple[str, ...] = (
-    "onerror=",
-    "onload=",
-    "onclick=",
-    "onmouseover=",
-    "onfocus=",
-    "onsubmit=",
-    "oninput=",
-)
 
 # Patterns that indicate JS execution context in the payload.
 _EXEC_PATTERNS: list[re.Pattern[str]] = [
@@ -53,6 +28,18 @@ _EXEC_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"<img\s+[^>]*onerror", re.IGNORECASE),
 ]
 
+# Discriminating XSS shapes: these fragments, when newly present in a response,
+# are strong evidence of reflection. They are narrow enough that a benign page
+# (even one containing <img> or <body>) is unlikely to match.
+#
+#   - <tag ... on*=...          (any tag bearing an inline event handler)
+#   - <script ...>              (script tag opener)
+#   - javascript:<expr>         (javascript: pseudo-URL with a following token)
+_DISCRIMINATING_PAYLOAD_RE: re.Pattern[str] = re.compile(
+    r"<\w+\b[^>]*\bon\w+\s*=[^>]*|<script\b[^>]*>|javascript:[A-Za-z_][\w.]*",
+    re.IGNORECASE,
+)
+
 
 class XSSScanner(BaseScanner):
     """Detects reflected and DOM-based XSS by analysing HTTP response content."""
@@ -61,14 +48,20 @@ class XSSScanner(BaseScanner):
 
     def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
         super().__init__(settings, http_client)
+        # Baseline cache: body text of a benign request per vector.id.
+        # A value of None means the baseline fetch failed and Strategy 2 must be skipped.
+        self._baseline_cache: dict[str, str | None] = {}
 
     async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Send *payload*, check if it appears unescaped in the response."""
         try:
+            baseline_body = await self._get_baseline(vector)
             response, elapsed = await self._send(vector, payload)
             body = response.text
 
-            finding = self._check_reflection(vector, payload, body, response, elapsed)
+            finding = self._check_reflection(
+                vector, payload, body, baseline_body, response, elapsed
+            )
             if finding:
                 logger.debug(
                     "XSS reflected: {url} [{field}]",
@@ -82,7 +75,7 @@ class XSSScanner(BaseScanner):
                 "XSSScanner error on {url} [{field}]: {err}",
                 url=vector.target_url,
                 field=vector.field_name,
-                err=exc,
+                err=_format_exc(exc),
             )
             return None
 
@@ -90,11 +83,35 @@ class XSSScanner(BaseScanner):
     # Internal helpers
     # -------------------------------------------------------------------
 
+    async def _get_baseline(self, vector: AttackVector) -> str | None:
+        """Fetch (and cache) a benign baseline response body for *vector*.
+
+        The baseline is used by Strategy 2 to distinguish native page content
+        from genuinely reflected payload fragments. Returns None if the
+        baseline request fails, in which case Strategy 2 is skipped entirely
+        to avoid false positives.
+        """
+        if vector.id in self._baseline_cache:
+            return self._baseline_cache[vector.id]
+        try:
+            response, _ = await self._send_baseline(vector)
+            self._baseline_cache[vector.id] = response.text
+        except Exception as exc:
+            logger.debug(
+                "XSS baseline fetch failed for {url} [{field}]: {err}",
+                url=vector.target_url,
+                field=vector.field_name,
+                err=_format_exc(exc),
+            )
+            self._baseline_cache[vector.id] = None
+        return self._baseline_cache[vector.id]
+
     def _check_reflection(
         self,
         vector: AttackVector,
         payload: str,
         body: str,
+        baseline_body: str | None,
         response: httpx.Response,
         elapsed: int,
     ) -> RawFinding | None:
@@ -110,12 +127,24 @@ class XSSScanner(BaseScanner):
                 )
                 return self._make_finding(vector, payload, response, elapsed, confidence, evidence)
 
-        # Strategy 2: key structural parts of the payload appear unescaped.
+        # Strategy 2: discriminating XSS shapes from the payload appear in the
+        # response more often than in a benign baseline. Without a baseline we
+        # cannot distinguish native page content from reflection, so we skip.
+        if baseline_body is None:
+            return None
+
+        body_lower = body.lower()
+        baseline_lower = baseline_body.lower()
+
         for part in self._extract_key_parts(payload):
-            if part and part in body and part not in html_lib.escape(part, quote=False):
+            part_lower = part.lower()
+            body_count = body_lower.count(part_lower)
+            baseline_count = baseline_lower.count(part_lower)
+            if body_count > baseline_count:
                 evidence = (
-                    f"XSS payload component '{self._truncate(part, 80)}' "
-                    f"reflected unencoded in response"
+                    f"XSS payload component '{self._truncate(part, 80)}' reflected "
+                    f"unencoded in response (baseline occurrences: {baseline_count}, "
+                    f"response occurrences: {body_count})"
                 )
                 return self._make_finding(
                     vector,
@@ -136,18 +165,12 @@ class XSSScanner(BaseScanner):
         return Confidence.LIKELY
 
     def _extract_key_parts(self, payload: str) -> list[str]:
-        """Extract the most diagnostic fragments from a payload for partial matching."""
-        parts: list[str] = []
+        """Extract discriminating XSS shapes from *payload* for partial matching.
 
-        # Extract tag names: <script, <svg, <img, etc.
-        for tag in _DANGEROUS_TAGS:
-            if f"<{tag}" in payload.lower():
-                parts.append(f"<{tag}")
-
-        # Extract event handlers: onerror=, onload=, etc.
-        lower = payload.lower()
-        for handler in _EVENT_HANDLERS:
-            if handler in lower:
-                parts.append(handler)
-
-        return parts
+        Only returns fragments that would not normally appear in a benign page:
+        tag+event-handler pairs, ``<script`` openers, and ``javascript:`` URIs.
+        Bare tag names like ``<img`` or ``<body`` are deliberately excluded
+        because they appear natively in most HTML pages and caused false
+        positives in earlier versions.
+        """
+        return [m.group(0) for m in _DISCRIMINATING_PAYLOAD_RE.finditer(payload)]
