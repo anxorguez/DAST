@@ -64,3 +64,23 @@ class TestLinkExtractor:
         html = '<a href="/page#section">Link</a>'
         links = extract_links(html, "http://localhost", "localhost")
         assert all("#" not in link for link in links)
+
+    def test_skips_logout_links(self) -> None:
+        """Logout URLs must not be followed during BFS.
+
+        Visiting /logout.php mid-crawl silently invalidates the
+        authenticated PHP session, so every subsequent request (crawler
+        *and* fuzzer) redirects back to the login form and no vulnerable
+        surface is ever tested.
+        """
+        html = (
+            '<a href="/logout.php">Logout</a>'
+            '<a href="/signout">Sign out</a>'
+            '<a href="/user/sign-out.aspx">Out</a>'
+            '<a href="/vulnerabilities/sqli/">SQLi</a>'
+        )
+        links = extract_links(html, "http://dvwa", "dvwa")
+        assert "http://dvwa/vulnerabilities/sqli/" in links
+        for link in links:
+            assert "logout" not in link.lower()
+            assert "sign" not in link.lower() or "sqli" in link.lower()

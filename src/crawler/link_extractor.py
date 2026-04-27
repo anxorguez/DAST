@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup, Tag
+
+# Links that, if followed, would invalidate the authenticated session.
+# The crawler must not follow these during BFS or every subsequent page
+# will redirect to the login form and no vectors will be discoverable.
+_SESSION_KILLING_PATH_RE: re.Pattern[str] = re.compile(
+    r"/(logout|signout|sign-out|log-out|exit)(\.php|\.aspx|\.jsp|/|$)",
+    re.IGNORECASE,
+)
 
 
 def extract_links(html: str, base_url: str, target_hostname: str) -> list[str]:
@@ -40,6 +49,12 @@ def extract_links(html: str, base_url: str, target_hostname: str) -> list[str]:
 
         # Enforce same-domain boundary
         if parsed.hostname != target_hostname:
+            continue
+
+        # Skip session-destroying links (logout, signout) so the crawler
+        # does not log itself out midway and lose access to the rest of
+        # the authenticated surface.
+        if _SESSION_KILLING_PATH_RE.search(parsed.path):
             continue
 
         # Strip fragment and normalise
