@@ -139,6 +139,124 @@
     }
     .findings-counter .counter-shown { font-weight: 700; color: #1a1a2e; }
 
+    /* Collapsible filters wrapper using <details>/<summary>. */
+    .findings-filters-wrapper {
+      margin-bottom: 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      overflow: visible;
+      background: #fff;
+    }
+    .findings-filters-wrapper > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 16px;
+      background: #1a1a2e;
+      color: #fff;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      user-select: none;
+    }
+    .findings-filters-wrapper > summary::-webkit-details-marker { display: none; }
+    .findings-filters-wrapper > summary::before {
+      content: "\25B8";
+      display: inline-block;
+      margin-right: 8px;
+      transition: transform 0.15s ease;
+      font-size: 12px;
+    }
+    .findings-filters-wrapper[open] > summary::before { transform: rotate(90deg); }
+    .findings-filters-wrapper[open] > summary {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    .findings-filters-wrapper > summary .summary-label { flex: 1; }
+    .findings-filters-wrapper > summary .summary-counter {
+      font-size: 12px;
+      font-weight: 500;
+      color: #cfd0db;
+    }
+    .findings-filters-wrapper > summary .summary-counter .counter-shown {
+      color: #fff;
+      font-weight: 700;
+    }
+    /* Inner panel resets the standalone filter block padding. */
+    .findings-filters-wrapper .findings-filters {
+      border: none;
+      border-radius: 0 0 6px 6px;
+      margin-bottom: 0;
+    }
+
+    /* Multi-select dropdown — replaces the flat checkbox-list pattern. */
+    .multi-select {
+      position: relative;
+      width: 100%;
+    }
+    .multi-select-trigger {
+      width: 100%;
+      text-align: left;
+      padding: 6px 26px 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fafafa;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      color: #1a1a2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      position: relative;
+    }
+    .multi-select-trigger::after {
+      content: "\25BE";
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: #666;
+    }
+    .multi-select-trigger:focus {
+      outline: none;
+      border-color: #1a1a2e;
+      background: #fff;
+    }
+    .multi-select-trigger.has-selection { color: #1a1a2e; font-weight: 600; }
+    .multi-select-trigger.is-placeholder { color: #888; font-weight: 400; }
+    .multi-select-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 6px 4px;
+    }
+    .multi-select.open .multi-select-panel { display: block; }
+    .multi-select-panel label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 8px;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    .multi-select-panel label:hover { background: #f0f0f4; }
+    .multi-select-panel input[type="checkbox"] { margin: 0; }
+
     /* Findings table wrapper for horizontal scroll on narrow viewports */
     .findings-table-wrapper {
       width: 100%;
@@ -149,7 +267,7 @@
     }
     .findings-table {
       width: 100%;
-      min-width: 1100px;
+      min-width: 1180px;
       border-collapse: collapse;
       table-layout: fixed;
     }
@@ -177,7 +295,7 @@
     /* Per-column rules — order matches <colgroup> below. */
     .findings-table .col-index       { width: 40px; }
     .findings-table .col-severity    { width: 90px; }
-    .findings-table .col-type        { width: 110px; }
+    .findings-table .col-type        { width: 160px; }
     .findings-table .col-url         { width: 220px; }
     .findings-table .col-field       { width: 140px; min-width: 140px; }
     .findings-table .col-payload     { width: 200px; }
@@ -185,6 +303,9 @@
     .findings-table .col-confidence  { width: 90px; }
     .findings-table .col-score       { width: 60px; text-align: right; }
     .findings-table .col-remediation { width: 240px; }
+    /* Type column — extra right padding so long badges never touch URL. */
+    .findings-table th:nth-child(3),
+    .findings-table td:nth-child(3) { padding-right: 18px; }
 
     /* Code styling inside the findings table — wrap, never break-all. */
     .findings-table code {
@@ -199,15 +320,30 @@
       display: inline-block;
       max-width: 100%;
     }
-    .findings-table .url-cell a {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-      font-size: 12px;
-      color: #1a1a2e;
+    /* URL cell — host on top (small, muted), path below (mono, dark). */
+    .findings-table .url-cell .url-link {
+      display: block;
       text-decoration: none;
+      color: inherit;
+    }
+    .findings-table .url-cell .url-host {
+      display: block;
+      font-family: inherit;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 2px;
       overflow-wrap: anywhere;
       word-break: normal;
     }
-    .findings-table .url-cell a:hover { text-decoration: underline; }
+    .findings-table .url-cell .url-path {
+      display: block;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      color: #1a1a2e;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    .findings-table .url-cell .url-link:hover .url-path { text-decoration: underline; }
     .findings-table .evidence-cell code {
       display: block;
       background: #f7f7f9;
@@ -303,8 +439,10 @@
         <tbody>
           <tr><td>Target URL</td><td>{{ report.target_url }}</td></tr>
           <tr><td>Scan ID</td><td>{{ report.scan_id }}</td></tr>
-          <tr><td>Start Time</td><td>{{ report.started_at }}</td></tr>
-          <tr><td>End Time</td><td>{{ report.finished_at }}</td></tr>
+          <tr><td>Start Date</td><td>{{ started_date }}</td></tr>
+          <tr><td>Start Time</td><td>{{ started_time }}</td></tr>
+          <tr><td>End Date</td><td>{{ finished_date }}</td></tr>
+          <tr><td>End Time</td><td>{{ finished_time }}</td></tr>
           <tr><td>Duration</td><td>{{ duration_seconds | round(2) }} seconds</td></tr>
           <tr><td>Pages Crawled</td><td>{{ report.pages_crawled }}</td></tr>
           <tr><td>Vectors Analyzed</td><td>{{ report.vectors_found }}</td></tr>
@@ -344,67 +482,73 @@
     <section>
       <h2>Findings ({{ report.findings | length }})</h2>
       {% if report.findings %}
-      <div class="findings-filters" id="findings-filters">
-        <div class="filter-group">
-          <label class="group-label">Severity</label>
-          <div class="checkbox-list">
-            {% for sev in ["critical", "high", "medium", "low", "info"] %}
-            <label><input type="checkbox" name="filter-severity" value="{{ sev }}"> {{ sev }}</label>
-            {% endfor %}
-          </div>
-        </div>
-        <div class="filter-group">
-          <label class="group-label">Type</label>
-          <div class="checkbox-list">
-            {% for vt in ["sqli", "xss", "cmdi", "ssrf", "xxe", "deserialization", "path_traversal", "open_redirect"] %}
-            <label><input type="checkbox" name="filter-type" value="{{ vt }}"> {{ vt }}</label>
-            {% endfor %}
-          </div>
-        </div>
-        <div class="filter-group">
-          <label class="group-label">Confidence</label>
-          <div class="checkbox-list">
-            {% for cf in ["confirmed", "likely", "possible"] %}
-            <label><input type="checkbox" name="filter-confidence" value="{{ cf }}"> {{ cf }}</label>
-            {% endfor %}
-          </div>
-        </div>
-        <div class="filter-group">
-          <label class="group-label" for="filter-score-min">Score (CVSS)</label>
-          <div class="score-range">
-            <input type="number" id="filter-score-min" min="0" max="10" step="0.1" placeholder="min">
-            <span>&ndash;</span>
-            <input type="number" id="filter-score-max" min="0" max="10" step="0.1" placeholder="max">
-          </div>
-        </div>
-        <div class="filter-group">
-          <label class="group-label" for="filter-url">URL</label>
-          <input type="text" id="filter-url" placeholder="contiene...">
-        </div>
-        <div class="filter-group">
-          <label class="group-label" for="filter-field">Field</label>
-          <input type="text" id="filter-field" placeholder="contiene...">
-        </div>
-        <div class="filter-group">
-          <label class="group-label" for="filter-payload">Payload</label>
-          <input type="text" id="filter-payload" placeholder="contiene...">
-        </div>
-        <div class="filter-group">
-          <label class="group-label" for="filter-evidence">Evidence</label>
-          <input type="text" id="filter-evidence" placeholder="contiene...">
-        </div>
-        <div class="filter-group">
-          <label class="group-label" for="filter-remediation">Remediation</label>
-          <input type="text" id="filter-remediation" placeholder="contiene...">
-        </div>
-        <div class="filter-actions">
-          <div class="findings-counter">
+      <details class="findings-filters-wrapper">
+        <summary>
+          <span class="summary-label">Filtros</span>
+          <span class="summary-counter">
             Mostrando <span class="counter-shown">{{ report.findings | length }}</span> de
             <span class="counter-total">{{ report.findings | length }}</span> findings
+          </span>
+        </summary>
+        <div class="findings-filters" id="findings-filters">
+          <div class="filter-group">
+            <label class="group-label">Severity</label>
+            <div class="multi-select" data-filter-key="severity" data-placeholder="Cualquiera">
+              <button type="button" class="multi-select-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Cualquiera</button>
+              <div class="multi-select-panel" role="listbox" aria-multiselectable="true">
+                {% for sev in ["critical", "high", "medium", "low", "info"] %}
+                <label><input type="checkbox" name="filter-severity" value="{{ sev }}"> {{ sev }}</label>
+                {% endfor %}
+              </div>
+            </div>
           </div>
-          <button type="button" class="reset-btn" id="filter-reset">Limpiar filtros</button>
+          <div class="filter-group">
+            <label class="group-label">Type</label>
+            <div class="multi-select" data-filter-key="type" data-placeholder="Cualquiera">
+              <button type="button" class="multi-select-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Cualquiera</button>
+              <div class="multi-select-panel" role="listbox" aria-multiselectable="true">
+                {% for vt in ["sqli", "xss", "cmdi", "ssrf", "xxe", "deserialization", "path_traversal", "open_redirect"] %}
+                <label><input type="checkbox" name="filter-type" value="{{ vt }}"> {{ vt }}</label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="group-label">Confidence</label>
+            <div class="multi-select" data-filter-key="confidence" data-placeholder="Cualquiera">
+              <button type="button" class="multi-select-trigger is-placeholder" aria-haspopup="listbox" aria-expanded="false">Cualquiera</button>
+              <div class="multi-select-panel" role="listbox" aria-multiselectable="true">
+                {% for cf in ["confirmed", "likely", "possible"] %}
+                <label><input type="checkbox" name="filter-confidence" value="{{ cf }}"> {{ cf }}</label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="group-label" for="filter-score-min">Score (CVSS)</label>
+            <div class="score-range">
+              <input type="number" id="filter-score-min" min="0" max="10" step="0.1" placeholder="min">
+              <span>&ndash;</span>
+              <input type="number" id="filter-score-max" min="0" max="10" step="0.1" placeholder="max">
+            </div>
+          </div>
+          <div class="filter-group">
+            <label class="group-label" for="filter-field">Field</label>
+            <input type="text" id="filter-field" placeholder="contiene...">
+          </div>
+          <div class="filter-group">
+            <label class="group-label" for="filter-payload">Payload</label>
+            <input type="text" id="filter-payload" placeholder="contiene...">
+          </div>
+          <div class="filter-group">
+            <label class="group-label" for="filter-evidence">Evidence</label>
+            <input type="text" id="filter-evidence" placeholder="contiene...">
+          </div>
+          <div class="filter-actions">
+            <button type="button" class="reset-btn" id="filter-reset">Limpiar filtros</button>
+          </div>
         </div>
-      </div>
+      </details>
       <div class="findings-table-wrapper">
         <table class="findings-table">
           <colgroup>
@@ -440,16 +584,19 @@
               data-vuln-type="{{ f.raw.vuln_type.value }}"
               data-confidence="{{ f.raw.confidence.value }}"
               data-score="{{ f.cvss_score }}"
-              data-url="{{ f.raw.vector.target_url | lower }}"
               data-field="{{ f.raw.vector.field_name | lower }}"
               data-payload="{{ f.raw.payload | lower }}"
               data-evidence="{{ f.raw.evidence | lower }}"
-              data-remediation="{{ f.remediation | lower }}"
             >
               <td>{{ loop.index }}</td>
               <td><span class="badge {{ f.severity.value | upper }}">{{ f.severity.value }}</span></td>
               <td><span class="badge {{ f.raw.vuln_type.value | upper }}">{{ f.raw.vuln_type.value }}</span></td>
-              <td class="url-cell"><a href="{{ f.raw.vector.target_url }}" target="_blank" rel="noopener noreferrer">{{ f.raw.vector.target_url }}</a></td>
+              <td class="url-cell">
+                <a class="url-link" href="{{ f.raw.vector.target_url }}" target="_blank" rel="noopener noreferrer" title="{{ f.raw.vector.target_url }}">
+                  <span class="url-host">{{ f.raw.vector.target_url | urlhost }}</span>
+                  <span class="url-path">{{ f.raw.vector.target_url | urlpath }}</span>
+                </a>
+              </td>
               <td class="field-cell"><code>{{ f.raw.vector.field_name }}</code></td>
               <td class="payload-cell"><code>{{ f.raw.payload }}</code></td>
               <td class="evidence-cell"><code>{{ f.raw.evidence }}</code></td>
@@ -474,7 +621,7 @@
   </div>
 
   <footer>
-    Generated by DAST Framework &mdash; {{ report.finished_at }}
+    Generated by DAST Framework &mdash; {{ finished_date }} {{ finished_time }}
   </footer>
 
   <script>
@@ -492,12 +639,11 @@
       var confidenceChecks = document.querySelectorAll('input[name="filter-confidence"]');
       var scoreMin = document.getElementById("filter-score-min");
       var scoreMax = document.getElementById("filter-score-max");
-      var urlInput = document.getElementById("filter-url");
       var fieldInput = document.getElementById("filter-field");
       var payloadInput = document.getElementById("filter-payload");
       var evidenceInput = document.getElementById("filter-evidence");
-      var remediationInput = document.getElementById("filter-remediation");
       var resetBtn = document.getElementById("filter-reset");
+      var multiSelects = document.querySelectorAll(".multi-select");
 
       function checkedValues(nodes) {
         var out = [];
@@ -523,11 +669,9 @@
         var confs = checkedValues(confidenceChecks);
         var sMin = readNumber(scoreMin);
         var sMax = readNumber(scoreMax);
-        var qUrl = readText(urlInput);
         var qField = readText(fieldInput);
         var qPayload = readText(payloadInput);
         var qEvidence = readText(evidenceInput);
-        var qRemediation = readText(remediationInput);
 
         var shown = 0;
         for (var i = 0; i < rows.length; i++) {
@@ -546,17 +690,16 @@
             if (visible && sMax !== null && score > sMax) { visible = false; }
           }
 
-          if (visible && qUrl && (ds.url || "").indexOf(qUrl) === -1) { visible = false; }
           if (visible && qField && (ds.field || "").indexOf(qField) === -1) { visible = false; }
           if (visible && qPayload && (ds.payload || "").indexOf(qPayload) === -1) { visible = false; }
           if (visible && qEvidence && (ds.evidence || "").indexOf(qEvidence) === -1) { visible = false; }
-          if (visible && qRemediation && (ds.remediation || "").indexOf(qRemediation) === -1) { visible = false; }
 
           row.style.display = visible ? "" : "none";
           if (visible) { shown++; }
         }
 
-        if (counterShown) { counterShown.textContent = String(shown); }
+        var shownNodes = document.querySelectorAll(".counter-shown");
+        for (var j = 0; j < shownNodes.length; j++) { shownNodes[j].textContent = String(shown); }
       }
 
       function bindInput(el, evt) {
@@ -565,23 +708,81 @@
 
       var allChecks = document.querySelectorAll('.findings-filters input[type="checkbox"]');
       for (var i = 0; i < allChecks.length; i++) {
-        allChecks[i].addEventListener("change", applyFilters);
+        allChecks[i].addEventListener("change", function (evt) {
+          var ms = evt.target.closest(".multi-select");
+          if (ms) { refreshTrigger(ms); }
+          applyFilters();
+        });
       }
       bindInput(scoreMin, "input");
       bindInput(scoreMax, "input");
-      bindInput(urlInput, "input");
       bindInput(fieldInput, "input");
       bindInput(payloadInput, "input");
       bindInput(evidenceInput, "input");
-      bindInput(remediationInput, "input");
+
+      // Multi-select dropdowns: open/close + trigger label sync.
+      function refreshTrigger(ms) {
+        var trigger = ms.querySelector(".multi-select-trigger");
+        var checks = ms.querySelectorAll('input[type="checkbox"]');
+        var picked = [];
+        for (var k = 0; k < checks.length; k++) {
+          if (checks[k].checked) { picked.push(checks[k].value); }
+        }
+        var placeholder = ms.dataset.placeholder || "Cualquiera";
+        if (picked.length === 0) {
+          trigger.textContent = placeholder;
+          trigger.classList.add("is-placeholder");
+          trigger.classList.remove("has-selection");
+        } else {
+          trigger.textContent = picked.join(", ");
+          trigger.classList.remove("is-placeholder");
+          trigger.classList.add("has-selection");
+        }
+      }
+
+      function closeAllMultiSelects(except) {
+        for (var m = 0; m < multiSelects.length; m++) {
+          var ms = multiSelects[m];
+          if (ms === except) { continue; }
+          if (ms.classList.contains("open")) {
+            ms.classList.remove("open");
+            var trg = ms.querySelector(".multi-select-trigger");
+            if (trg) { trg.setAttribute("aria-expanded", "false"); }
+          }
+        }
+      }
+
+      for (var n = 0; n < multiSelects.length; n++) {
+        (function (ms) {
+          var trigger = ms.querySelector(".multi-select-trigger");
+          if (!trigger) { return; }
+          trigger.addEventListener("click", function (evt) {
+            evt.stopPropagation();
+            var willOpen = !ms.classList.contains("open");
+            closeAllMultiSelects(ms);
+            ms.classList.toggle("open", willOpen);
+            trigger.setAttribute("aria-expanded", willOpen ? "true" : "false");
+          });
+          refreshTrigger(ms);
+        })(multiSelects[n]);
+      }
+
+      // Click outside any multi-select closes the open one.
+      document.addEventListener("click", function (evt) {
+        if (!evt.target || !evt.target.closest) { return; }
+        if (!evt.target.closest(".multi-select")) {
+          closeAllMultiSelects(null);
+        }
+      });
 
       if (resetBtn) {
         resetBtn.addEventListener("click", function () {
           for (var j = 0; j < allChecks.length; j++) { allChecks[j].checked = false; }
-          var textInputs = [scoreMin, scoreMax, urlInput, fieldInput, payloadInput, evidenceInput, remediationInput];
+          var textInputs = [scoreMin, scoreMax, fieldInput, payloadInput, evidenceInput];
           for (var k = 0; k < textInputs.length; k++) {
             if (textInputs[k]) { textInputs[k].value = ""; }
           }
+          for (var p = 0; p < multiSelects.length; p++) { refreshTrigger(multiSelects[p]); }
           applyFilters();
         });
       }

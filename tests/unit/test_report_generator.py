@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -15,7 +15,13 @@ from src.analysis.models import (
     Severity,
     ValidatedFinding,
 )
-from src.analysis.report_generator import ReportGenerator
+from src.analysis.report_generator import (
+    ReportGenerator,
+    _fmt_date,
+    _fmt_time,
+    _url_host,
+    _url_path,
+)
 from src.core.config import Settings
 from src.vectors.models import AttackVector, SurfaceType, VulnType
 
@@ -98,6 +104,55 @@ async def test_html_report_written(tmp_path: Path) -> None:
     content = html_file.read_text(encoding="utf-8")
     assert "test_scan_001" in content
     assert "CRITICAL" in content
+
+
+@pytest.mark.asyncio
+async def test_html_iteration2_markup(tmp_path: Path) -> None:
+    """Regression: iteration-2 layout (collapsed filters, multi-selects, two-line URL).
+
+    The filters panel must be a ``<details>`` element starting closed (no ``open``
+    attribute), the enum filters must use the multi-select pattern, the URL must
+    be split into host + path spans, and dates/times must be human-readable.
+    """
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+
+    assert '<details class="findings-filters-wrapper">' in html
+    assert "<summary>" in html and 'class="summary-counter"' in html
+    assert html.count('class="multi-select"') >= 3
+    assert 'data-filter-key="severity"' in html
+    assert 'data-filter-key="type"' in html
+    assert 'data-filter-key="confidence"' in html
+    assert 'class="url-host"' in html and 'class="url-path"' in html
+    assert 'id="filter-url"' not in html
+    assert 'id="filter-remediation"' not in html
+    assert "data-url=" not in html
+    assert "data-remediation=" not in html
+
+
+def test_fmt_date_and_time_naive() -> None:
+    dt = datetime(2026, 4, 27, 14, 8, 0, 425549)
+    assert _fmt_date(dt) == "27-04-2026"
+    assert _fmt_time(dt) == "14:08 UTC"
+
+
+def test_fmt_time_aware_offset() -> None:
+    dt = datetime(2026, 4, 27, 14, 8, tzinfo=timezone(timedelta(hours=2)))
+    # +0200 → "UTC+02:00"
+    assert _fmt_time(dt) == "14:08 UTC+02:00"
+
+
+def test_url_host_and_path_split() -> None:
+    url = "http://dvwa/vulnerabilities/sqli/?id=1&Submit=Submit"
+    assert _url_host(url) == "http://dvwa"
+    assert _url_path(url) == "/vulnerabilities/sqli/?id=1&Submit=Submit"
+    # URL without scheme/netloc round-trips safely.
+    assert _url_host("/just/a/path") == "/just/a/path"
+    assert _url_path("/just/a/path") == ""
 
 
 @pytest.mark.asyncio

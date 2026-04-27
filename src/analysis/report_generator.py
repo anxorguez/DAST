@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import aiosqlite
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -15,6 +16,53 @@ from src.core.config import Settings
 from src.core.exceptions import ReportError
 
 _TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
+
+
+# ---------------------------------------------------------------------------
+# Template helpers
+# ---------------------------------------------------------------------------
+
+
+def _fmt_date(dt: datetime) -> str:
+    """Format a datetime as ``dd-mm-yyyy``."""
+    return dt.strftime("%d-%m-%Y")
+
+
+def _fmt_time(dt: datetime) -> str:
+    """Format a datetime as ``HH:MM`` plus a timezone label.
+
+    Pipeline ``datetime`` values are produced via ``datetime.utcnow()`` and
+    are therefore naive — we treat them as UTC for display. Aware datetimes
+    print their numeric offset as ``UTC+HH:MM``.
+    """
+    if dt.tzinfo is None:
+        return dt.strftime("%H:%M") + " UTC"
+    offset = dt.strftime("%z")
+    if offset:
+        return f"{dt.strftime('%H:%M')} UTC{offset[:3]}:{offset[3:]}"
+    return dt.strftime("%H:%M %Z").strip()
+
+
+def _url_host(value: str) -> str:
+    """Return ``scheme://host[:port]`` for display above the path."""
+    parts = urlsplit(value)
+    if not parts.scheme or not parts.netloc:
+        return value
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def _url_path(value: str) -> str:
+    """Return ``path[?query][#fragment]`` for display below the host."""
+    parts = urlsplit(value)
+    if not parts.scheme or not parts.netloc:
+        return ""
+    out = parts.path or "/"
+    if parts.query:
+        out += f"?{parts.query}"
+    if parts.fragment:
+        out += f"#{parts.fragment}"
+    return out
+
 
 # ---------------------------------------------------------------------------
 # SQLite schema
@@ -142,6 +190,8 @@ class ReportGenerator:
             loader=FileSystemLoader(str(_TEMPLATES_DIR)),
             autoescape=select_autoescape(["html", "j2"]),
         )
+        env.filters["urlhost"] = _url_host
+        env.filters["urlpath"] = _url_path
         template = env.get_template("report.html.j2")
         duration_secs = (report.finished_at - report.started_at).total_seconds()
         rendered = template.render(
@@ -149,6 +199,10 @@ class ReportGenerator:
             generated_at=datetime.utcnow(),
             duration_seconds=duration_secs,
             scan_profile=self._settings.scan_profile,
+            started_date=_fmt_date(report.started_at),
+            started_time=_fmt_time(report.started_at),
+            finished_date=_fmt_date(report.finished_at),
+            finished_time=_fmt_time(report.finished_at),
         )
 
         html_path = self._scan_dir / "report.html"
