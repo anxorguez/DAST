@@ -83,6 +83,41 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 7b. Auto-initialise DVWA if the target redirects to /setup.php.
+#     This happens when running `docker compose run dast-app` directly
+#     without going through start.sh, which normally initialises the DB.
+# ---------------------------------------------------------------------------
+_effective_url=$(curl --silent --max-time 10 --location \
+    --write-out "%{url_effective}" --output /dev/null \
+    "${TARGET_URL}/index.php" 2>/dev/null || true)
+
+if echo "${_effective_url}" | grep -q "setup\.php"; then
+    log_info "DVWA database not initialised — running setup automatically..."
+    curl --silent --max-time 15 \
+        --request POST \
+        --data "create_db=Create+%2F+Reset+Database" \
+        "${TARGET_URL}/setup.php" \
+        --output /dev/null || true
+
+    SETUP_TIMEOUT=60
+    SETUP_INTERVAL=3
+    _elapsed=0
+    until ! curl --silent --max-time 5 --location \
+            --write-out "%{url_effective}" --output /dev/null \
+            "${TARGET_URL}/index.php" 2>/dev/null \
+          | grep -q "setup\.php"; do
+        if [ "${_elapsed}" -ge "${SETUP_TIMEOUT}" ]; then
+            log_error "DVWA DB did not finish initialising within ${SETUP_TIMEOUT}s. Aborting."
+            exit 1
+        fi
+        sleep "${SETUP_INTERVAL}"
+        _elapsed=$((_elapsed + SETUP_INTERVAL))
+        log_info "Waiting for DVWA DB... (${_elapsed}s elapsed)"
+    done
+    log_info "DVWA database initialised successfully."
+fi
+
+# ---------------------------------------------------------------------------
 # 8. Create per-scan output directory.
 # ---------------------------------------------------------------------------
 SCAN_ID="$(date +%Y%m%d_%H%M%S)_$(head -c 4 /dev/urandom | xxd -p)"

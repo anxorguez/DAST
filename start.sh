@@ -92,6 +92,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 7b. Wait until /index.php no longer redirects to setup.php
+# ---------------------------------------------------------------------------
+echo "[INFO] Verifying DVWA database initialisation (timeout: ${HEALTH_TIMEOUT}s)..."
+elapsed=0
+until ! curl --silent --max-time 5 --location \
+        --write-out "%{url_effective}" --output /dev/null \
+        "${DVWA_URL}/index.php" | grep -q "setup\.php"; do
+    if [ "${elapsed}" -ge "${HEALTH_TIMEOUT}" ]; then
+        echo "[ERROR] DVWA DB did not finish initialising within ${HEALTH_TIMEOUT}s. Aborting." >&2
+        exit 1
+    fi
+    sleep "${HEALTH_INTERVAL}"
+    elapsed=$((elapsed + HEALTH_INTERVAL))
+    echo "[INFO] Still waiting for DB... (${elapsed}s elapsed)"
+done
+echo "[INFO] DVWA database verified — ready to scan."
+# ---------------------------------------------------------------------------
 # 8. Print usage instructions.
 # ---------------------------------------------------------------------------
 cat <<'EOF'
