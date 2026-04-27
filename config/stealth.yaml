@@ -12,3 +12,7 @@ payload_types: "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redir
 concurrent_vectors: 2
 concurrent_payloads: 3
 requests_per_second: 5
+# Stealth: no retries (extra requests would only worsen the footprint).
+scanner_http_retries: 1
+# Lower payload count + smaller timeout — keep wall-clock bounded.
+scanner_vector_timeout_seconds: 90

@@ -11,3 +11,8 @@ payload_types: "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redir
 concurrent_vectors: 10
 concurrent_payloads: 20
 requests_per_second: 0
+# Aggressive profiles run on networks where transient errors do happen and
+# we want maximum coverage; 3 attempts is a fair compromise.
+scanner_http_retries: 3
+# 200 payloads × 60 s timeout would dominate runtime — cap aggressively.
+scanner_vector_timeout_seconds: 300

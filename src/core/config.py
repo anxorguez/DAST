@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     concurrent_vectors: int = 5  # Max vectors scanned in parallel
     concurrent_payloads: int = 10  # Max payloads tested in parallel per scanner
     requests_per_second: int = 0  # Rate limit (0 = unlimited)
+    # Total HTTP attempts per request inside scanners.  1 = no retry, which is
+    # the right default for fuzzing because retries multiply the cost of a
+    # toxic payload (3 × request_timeout) without adding signal.  Raise to 3
+    # only on flaky networks where transient errors are common.
+    scanner_http_retries: int = 1
+    # Hard wall-clock cap on the time a single (vector × scanner) pair can
+    # spend in :meth:`Fuzzer._fuzz_vector`.  Prevents one stuck endpoint from
+    # blocking the whole fuzz phase indefinitely.  Tune per profile to match
+    # ``max_payloads_per_vector × request_timeout`` budget.
+    scanner_vector_timeout_seconds: int = 120
 
     # --- Database -----------------------------------------------------
     db_path: str = ""

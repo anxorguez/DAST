@@ -11,3 +11,10 @@ payload_types: "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redir
 concurrent_vectors: 5
 concurrent_payloads: 10
 requests_per_second: 0
+# No HTTP retries on the fuzz path: a payload that times out is a signal,
+# not a transient error to mask away.
+scanner_http_retries: 1
+# Hard cap per (vector × scanner).  Beyond this the scanner is cancelled and
+# its partial findings are kept.  Two minutes is generous for the default
+# profile (50 payloads × 30 s would be 25 min worst-case without abort).
+scanner_vector_timeout_seconds: 120
