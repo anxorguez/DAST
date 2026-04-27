@@ -51,19 +51,112 @@
     .meta-table { border-collapse: collapse; width: 100%; }
     .meta-table td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
     .meta-table td:first-child { font-weight: 600; width: 200px; color: #555; }
-    /* Findings table */
-    .findings-table {
+
+    /* Findings filters */
+    .findings-filters {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px 16px;
+    }
+    .findings-filters .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .findings-filters .filter-group label.group-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #1a1a2e;
+    }
+    .findings-filters input[type="text"],
+    .findings-filters input[type="number"] {
       width: 100%;
-      border-collapse: collapse;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fafafa;
+    }
+    .findings-filters input[type="text"]:focus,
+    .findings-filters input[type="number"]:focus {
+      outline: none;
+      border-color: #1a1a2e;
+      background: #fff;
+    }
+    .findings-filters .checkbox-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      max-height: 110px;
+      overflow-y: auto;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+    .findings-filters .checkbox-list label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .findings-filters .score-range { display: flex; gap: 6px; align-items: center; }
+    .findings-filters .score-range input { flex: 1; min-width: 0; }
+    .findings-filters .score-range span { font-size: 12px; color: #666; }
+    .findings-filters .filter-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 8px;
+      border-top: 1px solid #e0e0e0;
+    }
+    .findings-filters button.reset-btn {
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .findings-filters button.reset-btn:hover { background: #2c2c4a; }
+    .findings-counter {
+      font-size: 13px;
+      color: #555;
+      font-weight: 500;
+    }
+    .findings-counter .counter-shown { font-weight: 700; color: #1a1a2e; }
+
+    /* Findings table wrapper for horizontal scroll on narrow viewports */
+    .findings-table-wrapper {
+      width: 100%;
+      overflow-x: auto;
       background: #fff;
       border-radius: 6px;
-      overflow: hidden;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .findings-table {
+      width: 100%;
+      min-width: 1100px;
+      border-collapse: collapse;
+      table-layout: fixed;
     }
     .findings-table th {
       background: #1a1a2e;
       color: #fff;
-      padding: 10px 14px;
+      padding: 10px 12px;
       text-align: left;
       font-size: 12px;
       font-weight: 600;
@@ -71,13 +164,96 @@
       letter-spacing: 0.04em;
     }
     .findings-table td {
-      padding: 10px 14px;
+      padding: 10px 12px;
       border-bottom: 1px solid #f0f0f0;
       vertical-align: top;
       font-size: 13px;
+      overflow-wrap: anywhere;
+      word-break: normal;
     }
     .findings-table tr:last-child td { border-bottom: none; }
-    .findings-table tr:hover td { background: #fafafa; }
+    .findings-table tbody tr:hover td { background: #fafafa; }
+
+    /* Per-column rules — order matches <colgroup> below. */
+    .findings-table .col-index       { width: 40px; }
+    .findings-table .col-severity    { width: 90px; }
+    .findings-table .col-type        { width: 110px; }
+    .findings-table .col-url         { width: 220px; }
+    .findings-table .col-field       { width: 140px; min-width: 140px; }
+    .findings-table .col-payload     { width: 200px; }
+    .findings-table .col-evidence    { width: 260px; }
+    .findings-table .col-confidence  { width: 90px; }
+    .findings-table .col-score       { width: 60px; text-align: right; }
+    .findings-table .col-remediation { width: 240px; }
+
+    /* Code styling inside the findings table — wrap, never break-all. */
+    .findings-table code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      background: #f0f0f0;
+      padding: 1px 4px;
+      border-radius: 3px;
+      word-break: normal;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      display: inline-block;
+      max-width: 100%;
+    }
+    .findings-table .url-cell a {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      color: #1a1a2e;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    .findings-table .url-cell a:hover { text-decoration: underline; }
+    .findings-table .evidence-cell code {
+      display: block;
+      background: #f7f7f9;
+      padding: 6px 8px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+      max-height: none;
+    }
+    .findings-table .payload-cell code {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+
+    /* Remediation column — collapsed by default to a single line. */
+    .remediation-cell .short-text {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .remediation-cell .full-text {
+      display: none;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .remediation-cell.expanded .short-text { display: none; }
+    .remediation-cell.expanded .full-text { display: block; }
+    .toggle-remediation {
+      display: inline-block;
+      margin-top: 4px;
+      background: none;
+      border: none;
+      padding: 0;
+      color: #2980b9;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .toggle-remediation:hover { color: #1a1a2e; }
+
+    /* Badges */
     .badge {
       display: inline-block;
       padding: 2px 8px;
@@ -87,29 +263,22 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: #fff;
+      white-space: nowrap;
     }
     .badge.CRITICAL { background: #c0392b; }
     .badge.HIGH     { background: #e67e22; }
     .badge.MEDIUM   { background: #f1c40f; color: #333; }
     .badge.LOW      { background: #2980b9; }
     .badge.INFO     { background: #7f8c8d; }
-    .badge.SQLI  { background: #8e44ad; }
-    .badge.XSS   { background: #16a085; }
-    .badge.CMDI  { background: #2c3e50; }
-    code {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-      font-size: 12px;
-      background: #f0f0f0;
-      padding: 1px 4px;
-      border-radius: 3px;
-      word-break: break-all;
-    }
-    .evidence {
-      max-width: 340px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+    .badge.SQLI            { background: #8e44ad; }
+    .badge.XSS             { background: #16a085; }
+    .badge.CMDI            { background: #2c3e50; }
+    .badge.SSRF            { background: #d35400; }
+    .badge.XXE             { background: #6c3483; }
+    .badge.DESERIALIZATION { background: #34495e; }
+    .badge.PATH_TRAVERSAL  { background: #117a65; }
+    .badge.OPEN_REDIRECT   { background: #b9770e; }
+
     .no-findings { color: #888; font-style: italic; }
     footer {
       text-align: center;
@@ -175,38 +344,129 @@
     <section>
       <h2>Findings ({{ report.findings | length }})</h2>
       {% if report.findings %}
-      <table class="findings-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Severity</th>
-            <th>Type</th>
-            <th>URL</th>
-            <th>Field</th>
-            <th>Payload</th>
-            <th>Evidence</th>
-            <th>Confidence</th>
-            <th>Score</th>
-            <th>Remediation</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in report.findings | sort(attribute='cvss_score', reverse=True) %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td><span class="badge {{ f.severity.value | upper }}">{{ f.severity.value }}</span></td>
-            <td><span class="badge {{ f.raw.vuln_type.value | upper }}">{{ f.raw.vuln_type.value }}</span></td>
-            <td><code>{{ f.raw.vector.target_url }}</code></td>
-            <td><code>{{ f.raw.vector.field_name }}</code></td>
-            <td><code>{{ f.raw.payload | truncate(80) }}</code></td>
-            <td class="evidence"><code>{{ f.raw.evidence | truncate(100) }}</code></td>
-            <td>{{ f.raw.confidence.value }}</td>
-            <td>{{ f.cvss_score }}</td>
-            <td>{{ f.remediation }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="findings-filters" id="findings-filters">
+        <div class="filter-group">
+          <label class="group-label">Severity</label>
+          <div class="checkbox-list">
+            {% for sev in ["critical", "high", "medium", "low", "info"] %}
+            <label><input type="checkbox" name="filter-severity" value="{{ sev }}"> {{ sev }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="group-label">Type</label>
+          <div class="checkbox-list">
+            {% for vt in ["sqli", "xss", "cmdi", "ssrf", "xxe", "deserialization", "path_traversal", "open_redirect"] %}
+            <label><input type="checkbox" name="filter-type" value="{{ vt }}"> {{ vt }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="group-label">Confidence</label>
+          <div class="checkbox-list">
+            {% for cf in ["confirmed", "likely", "possible"] %}
+            <label><input type="checkbox" name="filter-confidence" value="{{ cf }}"> {{ cf }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="group-label" for="filter-score-min">Score (CVSS)</label>
+          <div class="score-range">
+            <input type="number" id="filter-score-min" min="0" max="10" step="0.1" placeholder="min">
+            <span>&ndash;</span>
+            <input type="number" id="filter-score-max" min="0" max="10" step="0.1" placeholder="max">
+          </div>
+        </div>
+        <div class="filter-group">
+          <label class="group-label" for="filter-url">URL</label>
+          <input type="text" id="filter-url" placeholder="contiene...">
+        </div>
+        <div class="filter-group">
+          <label class="group-label" for="filter-field">Field</label>
+          <input type="text" id="filter-field" placeholder="contiene...">
+        </div>
+        <div class="filter-group">
+          <label class="group-label" for="filter-payload">Payload</label>
+          <input type="text" id="filter-payload" placeholder="contiene...">
+        </div>
+        <div class="filter-group">
+          <label class="group-label" for="filter-evidence">Evidence</label>
+          <input type="text" id="filter-evidence" placeholder="contiene...">
+        </div>
+        <div class="filter-group">
+          <label class="group-label" for="filter-remediation">Remediation</label>
+          <input type="text" id="filter-remediation" placeholder="contiene...">
+        </div>
+        <div class="filter-actions">
+          <div class="findings-counter">
+            Mostrando <span class="counter-shown">{{ report.findings | length }}</span> de
+            <span class="counter-total">{{ report.findings | length }}</span> findings
+          </div>
+          <button type="button" class="reset-btn" id="filter-reset">Limpiar filtros</button>
+        </div>
+      </div>
+      <div class="findings-table-wrapper">
+        <table class="findings-table">
+          <colgroup>
+            <col class="col-index">
+            <col class="col-severity">
+            <col class="col-type">
+            <col class="col-url">
+            <col class="col-field">
+            <col class="col-payload">
+            <col class="col-evidence">
+            <col class="col-confidence">
+            <col class="col-score">
+            <col class="col-remediation">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Severity</th>
+              <th>Type</th>
+              <th>URL</th>
+              <th>Field</th>
+              <th>Payload</th>
+              <th>Evidence</th>
+              <th>Confidence</th>
+              <th>Score</th>
+              <th>Remediation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in report.findings | sort(attribute='cvss_score', reverse=True) %}
+            <tr
+              data-severity="{{ f.severity.value }}"
+              data-vuln-type="{{ f.raw.vuln_type.value }}"
+              data-confidence="{{ f.raw.confidence.value }}"
+              data-score="{{ f.cvss_score }}"
+              data-url="{{ f.raw.vector.target_url | lower }}"
+              data-field="{{ f.raw.vector.field_name | lower }}"
+              data-payload="{{ f.raw.payload | lower }}"
+              data-evidence="{{ f.raw.evidence | lower }}"
+              data-remediation="{{ f.remediation | lower }}"
+            >
+              <td>{{ loop.index }}</td>
+              <td><span class="badge {{ f.severity.value | upper }}">{{ f.severity.value }}</span></td>
+              <td><span class="badge {{ f.raw.vuln_type.value | upper }}">{{ f.raw.vuln_type.value }}</span></td>
+              <td class="url-cell"><a href="{{ f.raw.vector.target_url }}" target="_blank" rel="noopener noreferrer">{{ f.raw.vector.target_url }}</a></td>
+              <td class="field-cell"><code>{{ f.raw.vector.field_name }}</code></td>
+              <td class="payload-cell"><code>{{ f.raw.payload }}</code></td>
+              <td class="evidence-cell"><code>{{ f.raw.evidence }}</code></td>
+              <td>{{ f.raw.confidence.value }}</td>
+              <td>{{ f.cvss_score }}</td>
+              <td class="remediation-cell">
+                <span class="short-text">{{ f.remediation }}</span>
+                <span class="full-text">{{ f.remediation }}</span>
+                {% if f.remediation and (f.remediation | length > 60 or '\n' in f.remediation) %}
+                <button type="button" class="toggle-remediation">ver más</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
       {% else %}
       <p class="no-findings">No confirmed findings were detected during this scan.</p>
       {% endif %}
@@ -216,5 +476,130 @@
   <footer>
     Generated by DAST Framework &mdash; {{ report.finished_at }}
   </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var tbody = document.querySelector(".findings-table tbody");
+      if (!tbody) { return; }
+
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+      var counterShown = document.querySelector(".counter-shown");
+
+      var severityChecks = document.querySelectorAll('input[name="filter-severity"]');
+      var typeChecks = document.querySelectorAll('input[name="filter-type"]');
+      var confidenceChecks = document.querySelectorAll('input[name="filter-confidence"]');
+      var scoreMin = document.getElementById("filter-score-min");
+      var scoreMax = document.getElementById("filter-score-max");
+      var urlInput = document.getElementById("filter-url");
+      var fieldInput = document.getElementById("filter-field");
+      var payloadInput = document.getElementById("filter-payload");
+      var evidenceInput = document.getElementById("filter-evidence");
+      var remediationInput = document.getElementById("filter-remediation");
+      var resetBtn = document.getElementById("filter-reset");
+
+      function checkedValues(nodes) {
+        var out = [];
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].checked) { out.push(nodes[i].value); }
+        }
+        return out;
+      }
+
+      function readNumber(el) {
+        if (!el || el.value === "" || el.value === null) { return null; }
+        var v = parseFloat(el.value);
+        return isNaN(v) ? null : v;
+      }
+
+      function readText(el) {
+        return el && el.value ? el.value.toLowerCase() : "";
+      }
+
+      function applyFilters() {
+        var sevs = checkedValues(severityChecks);
+        var types = checkedValues(typeChecks);
+        var confs = checkedValues(confidenceChecks);
+        var sMin = readNumber(scoreMin);
+        var sMax = readNumber(scoreMax);
+        var qUrl = readText(urlInput);
+        var qField = readText(fieldInput);
+        var qPayload = readText(payloadInput);
+        var qEvidence = readText(evidenceInput);
+        var qRemediation = readText(remediationInput);
+
+        var shown = 0;
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          var ds = row.dataset;
+          var visible = true;
+
+          if (sevs.length && sevs.indexOf(ds.severity) === -1) { visible = false; }
+          if (visible && types.length && types.indexOf(ds.vulnType) === -1) { visible = false; }
+          if (visible && confs.length && confs.indexOf(ds.confidence) === -1) { visible = false; }
+
+          if (visible && (sMin !== null || sMax !== null)) {
+            var score = parseFloat(ds.score);
+            if (isNaN(score)) { score = 0; }
+            if (sMin !== null && score < sMin) { visible = false; }
+            if (visible && sMax !== null && score > sMax) { visible = false; }
+          }
+
+          if (visible && qUrl && (ds.url || "").indexOf(qUrl) === -1) { visible = false; }
+          if (visible && qField && (ds.field || "").indexOf(qField) === -1) { visible = false; }
+          if (visible && qPayload && (ds.payload || "").indexOf(qPayload) === -1) { visible = false; }
+          if (visible && qEvidence && (ds.evidence || "").indexOf(qEvidence) === -1) { visible = false; }
+          if (visible && qRemediation && (ds.remediation || "").indexOf(qRemediation) === -1) { visible = false; }
+
+          row.style.display = visible ? "" : "none";
+          if (visible) { shown++; }
+        }
+
+        if (counterShown) { counterShown.textContent = String(shown); }
+      }
+
+      function bindInput(el, evt) {
+        if (el) { el.addEventListener(evt, applyFilters); }
+      }
+
+      var allChecks = document.querySelectorAll('.findings-filters input[type="checkbox"]');
+      for (var i = 0; i < allChecks.length; i++) {
+        allChecks[i].addEventListener("change", applyFilters);
+      }
+      bindInput(scoreMin, "input");
+      bindInput(scoreMax, "input");
+      bindInput(urlInput, "input");
+      bindInput(fieldInput, "input");
+      bindInput(payloadInput, "input");
+      bindInput(evidenceInput, "input");
+      bindInput(remediationInput, "input");
+
+      if (resetBtn) {
+        resetBtn.addEventListener("click", function () {
+          for (var j = 0; j < allChecks.length; j++) { allChecks[j].checked = false; }
+          var textInputs = [scoreMin, scoreMax, urlInput, fieldInput, payloadInput, evidenceInput, remediationInput];
+          for (var k = 0; k < textInputs.length; k++) {
+            if (textInputs[k]) { textInputs[k].value = ""; }
+          }
+          applyFilters();
+        });
+      }
+
+      // Remediation expand/collapse via event delegation.
+      document.addEventListener("click", function (evt) {
+        var target = evt.target;
+        if (!target || !target.classList || !target.classList.contains("toggle-remediation")) {
+          return;
+        }
+        var cell = target.closest(".remediation-cell");
+        if (!cell) { return; }
+        var expanded = cell.classList.toggle("expanded");
+        target.textContent = expanded ? "ver menos" : "ver más";
+      });
+
+      applyFilters();
+    })();
+  </script>
 </body>
 </html>
