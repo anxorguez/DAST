@@ -1,15 +1,14 @@
 """Application configuration via Pydantic Settings v2.
 
-Settings are loaded from environment variables and optionally from a YAML
-profile file. Environment variables always take precedence over profile values.
+Settings are loaded from environment variables (and a local ``.env`` file).
+Tuning parameters that used to live in YAML scan profiles are now exposed
+directly as CLI flags or environment variables.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
-import yaml
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,7 +25,6 @@ class Settings(BaseSettings):
 
     # --- Target -------------------------------------------------------
     target_url: str = ""
-    scan_profile: str = "default"
 
     # --- Output -------------------------------------------------------
     output_dir: str = "/app/reports"
@@ -60,8 +58,7 @@ class Settings(BaseSettings):
     scanner_http_retries: int = 1
     # Hard wall-clock cap on the time a single (vector × scanner) pair can
     # spend in :meth:`Fuzzer._fuzz_vector`.  Prevents one stuck endpoint from
-    # blocking the whole fuzz phase indefinitely.  Tune per profile to match
-    # ``max_payloads_per_vector × request_timeout`` budget.
+    # blocking the whole fuzz phase indefinitely.
     scanner_vector_timeout_seconds: int = 120
 
     # --- Database -----------------------------------------------------
@@ -82,15 +79,6 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {valid}, got '{v}'")
         return s
 
-    @field_validator("scan_profile", mode="before")
-    @classmethod
-    def _validate_profile(cls, v: object) -> str:
-        valid = {"default", "aggressive", "stealth"}
-        s = str(v).lower()
-        if s not in valid:
-            raise ValueError(f"scan_profile must be one of {valid}, got '{v}'")
-        return s
-
     # -----------------------------------------------------------------
     @property
     def payload_types_list(self) -> list[str]:
@@ -99,32 +87,14 @@ class Settings(BaseSettings):
 
 
 # ---------------------------------------------------------------------------
-# Profile loading helpers
+# Settings factory
 # ---------------------------------------------------------------------------
 
-_PROFILES_DIR = Path(__file__).parent.parent.parent / "config"
 
+def get_settings(**overrides: Any) -> Settings:
+    """Build a Settings instance, applying explicit overrides on top of env/defaults.
 
-def _load_profile(profile_name: str) -> dict[str, Any]:
-    """Load a YAML profile file and return its contents as a dict."""
-    profile_path = _PROFILES_DIR / f"{profile_name}.yaml"
-    if not profile_path.exists():
-        return {}
-    with profile_path.open(encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
-    return data if isinstance(data, dict) else {}
-
-
-def get_settings(profile: str | None = None, **overrides: Any) -> Settings:
-    """Build a Settings instance, merging profile defaults and explicit overrides.
-
-    Priority (highest wins): overrides > environment variables > profile YAML > defaults.
+    Priority (highest wins): overrides > environment variables > defaults.
     """
-    profile_data: dict[str, Any] = {}
-    if profile:
-        profile_data = _load_profile(profile)
-
-    # Merge: start from profile data as base, then apply explicit overrides.
-    # Pydantic Settings will still read env vars on top of everything.
-    merged = {**profile_data, **{k: v for k, v in overrides.items() if v is not None}}
+    merged = {k: v for k, v in overrides.items() if v is not None}
     return Settings(**merged)

@@ -1,8 +1,9 @@
 """CLI entry point for the DAST framework.
 
 Usage:
-    python -m src.main --url http://dvwa --profile default
-    python -m src.main --url http://target --profile aggressive --log-level DEBUG
+    python -m src.main --url http://dvwa
+    python -m src.main --url http://target --concurrent-vectors 10 \\
+        --concurrent-payloads 20 --requests-per-second 0 --depth 3 --log-level DEBUG
 """
 
 from __future__ import annotations
@@ -38,12 +39,40 @@ def _make_scan_id() -> str:
     help="Target URL to scan (e.g. http://dvwa).",
 )
 @click.option(
-    "--profile",
-    default="default",
+    "--concurrent-vectors",
+    "concurrent_vectors",
+    default=5,
     show_default=True,
-    envvar="SCAN_PROFILE",
-    type=click.Choice(["default", "aggressive", "stealth"], case_sensitive=False),
-    help="Scan profile controlling depth, payload count, and timeouts.",
+    type=int,
+    envvar="CONCURRENT_VECTORS",
+    help="Maximum number of attack vectors scanned in parallel.",
+)
+@click.option(
+    "--concurrent-payloads",
+    "concurrent_payloads",
+    default=10,
+    show_default=True,
+    type=int,
+    envvar="CONCURRENT_PAYLOADS",
+    help="Maximum number of payloads tested in parallel per scanner.",
+)
+@click.option(
+    "--requests-per-second",
+    "requests_per_second",
+    default=0,
+    show_default=True,
+    type=int,
+    envvar="REQUESTS_PER_SECOND",
+    help="Global rate limit in requests per second (0 = unlimited).",
+)
+@click.option(
+    "--depth",
+    "depth",
+    default=3,
+    show_default=True,
+    type=int,
+    envvar="MAX_DEPTH",
+    help="Maximum BFS depth followed by the crawler.",
 )
 @click.option(
     "--output",
@@ -60,7 +89,10 @@ def _make_scan_id() -> str:
 )
 def main(
     url: str,
-    profile: str,
+    concurrent_vectors: int,
+    concurrent_payloads: int,
+    requests_per_second: int,
+    depth: int,
     output: str | None,
     log_level: str | None,
 ) -> None:
@@ -68,13 +100,19 @@ def main(
     # ------------------------------------------------------------------
     # Build settings
     # ------------------------------------------------------------------
-    overrides: dict[str, object] = {"target_url": url, "scan_profile": profile}
+    overrides: dict[str, object] = {
+        "target_url": url,
+        "concurrent_vectors": concurrent_vectors,
+        "concurrent_payloads": concurrent_payloads,
+        "requests_per_second": requests_per_second,
+        "max_depth": depth,
+    }
     if output:
         overrides["output_dir"] = output
     if log_level:
         overrides["log_level"] = log_level
 
-    settings = get_settings(profile=profile, **overrides)
+    settings = get_settings(**overrides)
 
     # ------------------------------------------------------------------
     # Create scan output directory
@@ -98,9 +136,13 @@ def main(
     setup_logger(log_level=settings.log_level, log_file=scan_dir / "scan.log")
 
     logger.info(
-        "DAST Framework starting | url={u} | profile={p} | scan_id={s}",
+        "DAST Framework starting | url={u} | cv={cv} | cp={cp} | rps={rps} | "
+        "depth={d} | scan_id={s}",
         u=url,
-        p=profile,
+        cv=concurrent_vectors,
+        cp=concurrent_payloads,
+        rps=requests_per_second,
+        d=depth,
         s=scan_id,
     )
 
