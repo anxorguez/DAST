@@ -35,7 +35,6 @@ RUN playwright install-deps chromium \
 # Copy application source code.
 COPY src/       ./src/
 COPY payloads/  ./payloads/
-COPY config/    ./config/
 COPY templates/ ./templates/
 COPY pyproject.toml .
 

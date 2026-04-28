@@ -12,13 +12,15 @@ services:
     image: dast:latest
     environment:
       TARGET_URL:              ${TARGET_URL:-http://dvwa}
-      SCAN_PROFILE:            ${SCAN_PROFILE:-default}
       OUTPUT_DIR:              /app/reports
       LOG_LEVEL:               ${LOG_LEVEL:-INFO}
       MAX_DEPTH:               ${MAX_DEPTH:-3}
       MAX_PAGES:               ${MAX_PAGES:-100}
       REQUEST_TIMEOUT:         ${REQUEST_TIMEOUT:-30}
       CONCURRENT_PAGES:        ${CONCURRENT_PAGES:-5}
+      CONCURRENT_VECTORS:      ${CONCURRENT_VECTORS:-5}
+      CONCURRENT_PAYLOADS:     ${CONCURRENT_PAYLOADS:-10}
+      REQUESTS_PER_SECOND:     ${REQUESTS_PER_SECOND:-0}
       AUTH_ENABLED:            ${AUTH_ENABLED:-false}
       AUTH_URL:                ${AUTH_URL:-}
       AUTH_USERNAME:           ${AUTH_USERNAME:-}
