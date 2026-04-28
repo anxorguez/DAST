@@ -27,5 +27,7 @@ payloads/
 
 The `PayloadLoader` class in `src/fuzzing/payload_loader.py` reads these files
 automatically at fuzzing time.  Comment lines (starting with `#`) and blank lines
-are ignored.  Duplicates are removed.  The `max_payloads_per_vector` setting in
-each scan profile controls how many payloads are used per injection point.
+are ignored.  Duplicates are removed.  The `MAX_PAYLOADS_PER_VECTOR` setting
+(env var) controls how many payloads are used per injection point. Concurrency
+and rate-limiting are tuned via the CLI flags `--concurrent-vectors`,
+`--concurrent-payloads`, and `--requests-per-second`.

@@ -175,8 +175,10 @@ cp .env.example .env
 # 3. Start DVWA and wait for it to be ready
 ./start.sh
 
-# 4. Run a scan against DVWA with the default profile
-docker compose run --rm dast-app --url http://dvwa --profile default
+# 4. Run a scan against DVWA with the default tuning parameters
+docker compose run --rm dast-app --url http://dvwa \
+    --concurrent-vectors 5 --concurrent-payloads 10 \
+    --requests-per-second 0 --depth 3
 
 # 5. Find your report in ./reports/<scan_id>/
 ls reports/
@@ -191,7 +193,6 @@ All settings are read from environment variables (.env file or shell environment
 | Variable                  | Default                                      | Description                                         |
 |---------------------------|----------------------------------------------|-----------------------------------------------------|
 | TARGET_URL                | http://dvwa                                  | URL of the application to scan                      |
-| SCAN_PROFILE              | default                                      | Scan profile: default, aggressive, stealth          |
 | OUTPUT_DIR                | /app/reports                                 | Output directory inside the container               |
 | LOG_LEVEL                 | INFO                                         | Log level: DEBUG, INFO, WARNING, ERROR              |
 | MAX_DEPTH                 | 3                                            | Maximum BFS crawling depth                          |
@@ -214,8 +215,7 @@ All settings are read from environment variables (.env file or shell environment
 | DVWA_USERNAME             | admin                                        | DVWA login username                                 |
 | DVWA_PASSWORD             | password                                     | DVWA login password                                 |
 
-Scan profiles (config/default.yaml, config/aggressive.yaml, config/stealth.yaml)
-override these defaults. Profile values are in turn overridden by environment variables.
+CLI flags always take priority over environment variables and built-in defaults.
 
 ### Authenticating against DVWA
 
@@ -244,16 +244,26 @@ fuzz the vulnerable pages: `/vulnerabilities/sqli/?id=...`,
 `/vulnerabilities/xss_r/?name=...`, `/vulnerabilities/xss_s/`,
 `/vulnerabilities/exec/`, `/vulnerabilities/fi/?page=...`, and others.
 
-### Scan Profile Comparison
+### Tuning parameters
 
-| Setting                 | default | aggressive | stealth |
-|-------------------------|---------|------------|---------|
-| max_depth               | 3       | 5          | 2       |
-| max_pages               | 100     | 500        | 50      |
-| max_payloads_per_vector | 50      | 200        | 20      |
-| concurrent_vectors      | 5       | 10         | 2       |
-| concurrent_payloads     | 10      | 20         | 3       |
-| requests_per_second     | 0       | 0          | 5       |
+The four tuning knobs that used to live in scan profiles are now exposed
+directly on the CLI. Each flag can also be set via its corresponding
+environment variable (CLI value wins on conflict).
+
+| CLI flag                | Env var                | Default | Description                                       |
+|-------------------------|------------------------|---------|---------------------------------------------------|
+| `--concurrent-vectors`  | `CONCURRENT_VECTORS`   | 5       | Vectors fuzzed in parallel                        |
+| `--concurrent-payloads` | `CONCURRENT_PAYLOADS`  | 10      | Payloads tested in parallel per scanner           |
+| `--requests-per-second` | `REQUESTS_PER_SECOND`  | 0       | Global rate limit (0 = unlimited)                 |
+| `--depth`               | `MAX_DEPTH`            | 3       | Maximum BFS depth followed by the crawler         |
+
+Recommended combinations equivalent to the previous profiles:
+
+| Style       | `--concurrent-vectors` | `--concurrent-payloads` | `--requests-per-second` | `--depth` |
+|-------------|------------------------|-------------------------|-------------------------|-----------|
+| balanced    | 5                      | 10                      | 0                       | 3         |
+| aggressive  | 10                     | 20                      | 0                       | 5         |
+| stealth     | 2                      | 3                       | 5                       | 2         |
 
 ---
 

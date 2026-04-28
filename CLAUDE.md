@@ -74,7 +74,7 @@ Tras completar cualquier tarea:
 Cuando se cree o modifique una funcionalidad:
 
 1. `docker compose up -d dvwa db && docker compose build dast-app`
-2. `docker compose run --rm dast-app --url http://dvwa --profile default`
+2. `docker compose run --rm dast-app --url http://dvwa --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 --depth 3`
 3. Revisar la salida en consola y los archivos en `reports/`
 4. No dar la tarea por terminada hasta que la salida sea la esperada
 
@@ -150,7 +150,9 @@ pytest tests/unit/ --cov=src --cov-report=term-missing
 # Entorno Docker
 ./start.sh
 docker compose build dast-app
-docker compose run --rm dast-app --url http://dvwa --profile default
+docker compose run --rm dast-app --url http://dvwa \
+    --concurrent-vectors 5 --concurrent-payloads 10 \
+    --requests-per-second 0 --depth 3
 docker compose logs dast-app
 ./stop.sh
 ```
@@ -160,12 +162,15 @@ docker compose logs dast-app
 ## Configuración
 
 Todo va a través de `src/core/config.py` (clase `Settings`, Pydantic BaseSettings).
-Variables de entorno, `.env` y perfiles YAML en `config/*.yaml`.
+Variables de entorno o `.env` para los valores por defecto; los flags de CLI tienen prioridad.
 Nunca hardcodear URLs, rutas o credenciales en el código.
 
-- `default` — equilibrado, para uso general
-- `aggressive` — más payloads, más profundidad
-- `stealth` — menos concurrencia, rate limiting
+Cuatro parámetros de tuning expuestos directamente en la CLI:
+
+- `--concurrent-vectors` (env `CONCURRENT_VECTORS`, default `5`) — vectores en paralelo
+- `--concurrent-payloads` (env `CONCURRENT_PAYLOADS`, default `10`) — payloads por scanner
+- `--requests-per-second` (env `REQUESTS_PER_SECOND`, default `0`) — rate limit global (0 = sin límite)
+- `--depth` (env `MAX_DEPTH`, default `3`) — profundidad BFS del crawler
 
 ---
 
@@ -179,7 +184,19 @@ Nunca hardcodear URLs, rutas o credenciales en el código.
 
 ## Prototipos de Commits Después de Cada Tarea
 
-Al terminar cualquier tarea, muestra un bloque de commits listo para copiar en el chat (NO lo ejecutes por bash). Formato:
+Al terminar cualquier tarea, muestra un bloque de commits y de git adds listo para copiar en el chat (NO lo ejecutes por bash). Formato:
+
+---
+
+**git adds para esta tarea:**
+
+git add 1 —
+- `git add archivos`
+
+git add 2 — 
+- `git add archivos`
+
+---
 
 ---
 

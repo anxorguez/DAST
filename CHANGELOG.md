@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — CLI tuning flags replace scan profiles
+
+- **BREAKING**: Removed the `--profile` CLI flag and the `SCAN_PROFILE` environment
+  variable. The YAML files under `config/` (`default.yaml`, `aggressive.yaml`,
+  `stealth.yaml`) have been deleted; the directory no longer exists.
+- Added four explicit tuning flags on the CLI, each with an equivalent env var:
+  - `--concurrent-vectors` (`CONCURRENT_VECTORS`, default 5)
+  - `--concurrent-payloads` (`CONCURRENT_PAYLOADS`, default 10)
+  - `--requests-per-second` (`REQUESTS_PER_SECOND`, default 0 = unlimited)
+  - `--depth` (`MAX_DEPTH`, default 3)
+- `Settings.scan_profile`, its validator, and the `_load_profile`/`get_settings`
+  YAML branch are removed. `get_settings()` now applies overrides on top of env
+  defaults only. CLI flags take priority over environment variables.
+- HTML report replaces the "Scan Profile" row with explicit rows for each tuning
+  parameter (`concurrent_vectors`, `concurrent_payloads`, `requests_per_second`,
+  `max_depth`).
+- `pyyaml` removed from runtime dependencies (no longer needed once profile YAMLs
+  are gone).
+
 ### Added — Mejora 3: CVSS 3.1 Real Scoring
 
 - New module `src/analysis/cvss.py` implementing the complete CVSS 3.1 Base Score formula.
