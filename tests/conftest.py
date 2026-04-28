@@ -39,7 +39,6 @@ def event_loop_policy():
 def settings() -> Settings:
     return Settings(
         target_url="http://localhost:8080",
-        scan_profile="default",
         output_dir="/tmp/dast-test-reports",
         log_level="DEBUG",
         max_depth=2,

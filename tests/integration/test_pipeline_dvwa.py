@@ -66,7 +66,6 @@ def dvwa_settings(tmp_path: Path) -> Settings:
     _wait_for_dvwa_login()
     return Settings(
         target_url="http://localhost:8080",
-        scan_profile="default",
         output_dir=str(tmp_path),
         log_level="INFO",
         max_depth=2,

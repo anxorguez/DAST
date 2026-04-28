@@ -40,7 +40,6 @@ pytestmark = pytest.mark.skipif(
 def webgoat_settings(tmp_path: Path) -> Settings:
     return Settings(
         target_url="http://localhost:8090/WebGoat",
-        scan_profile="default",
         output_dir=str(tmp_path),
         log_level="INFO",
         max_depth=2,
