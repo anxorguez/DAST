@@ -118,14 +118,52 @@ if echo "${_effective_url}" | grep -q "setup\.php"; then
 fi
 
 # ---------------------------------------------------------------------------
-# 8. Create per-scan output directory.
+# 8. Resolve the per-scan output directory (creation deferred to Python).
+#
+# Rules:
+#   * If SCAN_NAME is set in the environment (compose/CI override) it wins.
+#   * Otherwise we scan "$@" for --output VALUE / --output=VALUE so the user
+#     can pick a name from the CLI without having to plumb env vars through
+#     docker-compose.
+#   * If neither is provided, fall back to a timestamp_random ID.
+#
+# Important: nothing is created on disk here. Python decides whether to
+# materialise the directory under reports/<id>/ (successful scan) or under
+# reports/debug/<id>/ (aborted scan). Doing the mkdir up-front would create
+# empty directories on commands like --help or argument-validation failures.
 # ---------------------------------------------------------------------------
-SCAN_ID="$(date +%Y%m%d_%H%M%S)_$(head -c 4 /dev/urandom | xxd -p)"
-SCAN_DIR="${OUTPUT_DIR:-/app/reports}/${SCAN_ID}"
-mkdir -p "${SCAN_DIR}"
+OUTPUT_DIR_BASE="${OUTPUT_DIR:-/app/reports}"
+
+if [ -z "${SCAN_NAME:-}" ]; then
+    _next_is_output=0
+    for _arg in "$@"; do
+        if [ "${_next_is_output}" -eq 1 ]; then
+            SCAN_NAME="${_arg}"
+            break
+        fi
+        case "${_arg}" in
+            --output)   _next_is_output=1 ;;
+            --output=*) SCAN_NAME="${_arg#--output=}"; break ;;
+        esac
+    done
+    unset _next_is_output _arg
+fi
+
+if [ -n "${SCAN_NAME:-}" ]; then
+    case "${SCAN_NAME}" in
+        /*) SCAN_DIR="${SCAN_NAME}" ;;
+        *)  SCAN_DIR="${OUTPUT_DIR_BASE}/${SCAN_NAME}" ;;
+    esac
+    SCAN_ID="$(basename "${SCAN_DIR}")"
+else
+    SCAN_ID="$(date +%Y%m%d_%H%M%S)_$(head -c 4 /dev/urandom | xxd -p)"
+    SCAN_DIR="${OUTPUT_DIR_BASE}/${SCAN_ID}"
+fi
+
 export SCAN_ID
 export SCAN_DIR
-log_info "Scan output directory: ${SCAN_DIR}"
+export SCAN_NAME
+log_info "Planned scan output directory: ${SCAN_DIR} (created by Python on scan start)"
 
 # ---------------------------------------------------------------------------
 # 9. Execute the Python application, forwarding all arguments.
