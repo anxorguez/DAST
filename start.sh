@@ -118,20 +118,26 @@ cat <<'EOF'
 To run a scan against DVWA:
 
     docker compose run --rm dast-app --url http://dvwa \
-        --concurrent-vectors 5 --concurrent-payloads 10 \
-        --requests-per-second 0 --depth 3
+        --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
+        --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+        --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+        --request-timeout 30
 
 To run with verbose logging:
 
     docker compose run --rm dast-app --url http://dvwa \
-        --concurrent-vectors 5 --concurrent-payloads 10 \
-        --requests-per-second 0 --depth 3 --log-level DEBUG
+        --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
+        --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+        --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+        --request-timeout 30 --log-level DEBUG
 
 To target a different application (update TARGET_URL in .env first):
 
     docker compose run --rm dast-app --url http://your-app \
-        --concurrent-vectors 10 --concurrent-payloads 20 \
-        --requests-per-second 0 --depth 5
+        --concurrent-vectors 10 --concurrent-payloads 20 --requests-per-second 0 \
+        --depth 5 --max-pages 500 --max-payloads-per-vector 200 \
+        --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+        --request-timeout 60
 
 Scan reports are saved to ./reports/<scan_id>/ on the host.
 
