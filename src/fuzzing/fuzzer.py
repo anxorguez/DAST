@@ -10,6 +10,7 @@ from loguru import logger
 from src.analysis.models import RawFinding
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
+from src.core.rate_limiter import GlobalRateLimiter
 from src.vectors.models import AttackVector, VulnType
 
 from .base_scanner import BaseScanner
@@ -48,10 +49,12 @@ class Fuzzer:
         self,
         settings: Settings,
         session_cookies: list[dict[str, Any]] | None = None,
+        rate_limiter: GlobalRateLimiter | None = None,
     ) -> None:
         self._settings = settings
         self._loader = PayloadLoader()
         self._session_cookies = session_cookies or []
+        self._rate_limiter = rate_limiter
         # Public attribute: XSS payloads injected into the target during fuzzing.
         self.injected_xss_payloads: list[str] = []
         self._xss_lock = asyncio.Lock()
@@ -113,7 +116,7 @@ class Fuzzer:
                     logger.warning("No payloads found for {vt}", vt=vuln_type.value)
                     continue
 
-                scanner = _SCANNER_MAP[vuln_type](self._settings, http_client)
+                scanner = _SCANNER_MAP[vuln_type](self._settings, http_client, self._rate_limiter)
                 # Hard wall-clock cap per (vector × scanner).  If a single
                 # endpoint stalls (slow target, tarpit, broken vhost), we
                 # cancel the scanner and move on — the early-abort heuristic

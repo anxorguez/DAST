@@ -446,15 +446,33 @@
           <tr><td>Duration</td><td>{{ duration_seconds | round(2) }} seconds</td></tr>
           <tr><td>Pages Crawled</td><td>{{ report.pages_crawled }}</td></tr>
           <tr><td>Vectors Analyzed</td><td>{{ report.vectors_found }}</td></tr>
-          <tr><td>Concurrent Vectors</td><td>{{ concurrent_vectors }}</td></tr>
-          <tr><td>Concurrent Payloads</td><td>{{ concurrent_payloads }}</td></tr>
-          <tr>
-            <td>Requests per Second</td>
-            <td>{% if requests_per_second == 0 %}unlimited{% else %}{{ requests_per_second }}{% endif %}</td>
-          </tr>
-          <tr><td>Max Crawl Depth</td><td>{{ max_depth }}</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <!-- Effective configuration -->
+    <section>
+      <h2>Effective Configuration</h2>
+      <p class="muted">Snapshot of the Settings object used for this scan. Sensitive
+        fields (passwords, db_path) are excluded.</p>
+      {% for group_name, rows in config_groups %}
+        <h3>{{ group_name }}</h3>
+        <table class="meta-table">
+          <tbody>
+          {% for key, value in rows %}
+            <tr>
+              <td>{{ key }}</td>
+              <td>{% if value is none %}<em>none</em>
+              {% elif value == "" %}<em>(empty)</em>
+              {% elif value is sameas true %}true
+              {% elif value is sameas false %}false
+              {% elif key == "requests_per_second" and value == 0 %}0 (unlimited)
+              {% else %}{{ value }}{% endif %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% endfor %}
     </section>
 
     <!-- Summary -->

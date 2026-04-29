@@ -12,6 +12,7 @@ from loguru import logger
 from src.analysis.models import Confidence, RawFinding
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
+from src.core.rate_limiter import GlobalRateLimiter
 from src.vectors.models import AttackVector, VulnType
 
 # Number of times each payload is retried to confirm a finding.
@@ -82,9 +83,17 @@ class BaseScanner(ABC):
 
     VULN_TYPE: VulnType  # Must be set by every concrete subclass.
 
-    def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        http_client: HTTPClient,
+        rate_limiter: GlobalRateLimiter | None = None,
+    ) -> None:
         self._settings = settings
         self._http = http_client
+        # Shared across all scanners so ``--requests-per-second`` corresponds
+        # to the *combined* outbound rate, not per-scanner.
+        self._rate_limiter = rate_limiter
         # Lock ensures time-based payloads don't run concurrently.
         self._time_based_lock: asyncio.Lock = asyncio.Lock()
         # Per-scan counters, reset at the start of each scan() call.
@@ -141,7 +150,6 @@ class BaseScanner(ABC):
         findings: list[RawFinding] = []
         findings_lock = asyncio.Lock()
 
-        rps = self._settings.requests_per_second
         abort = asyncio.Event()
         payloads_attempted = 0
 
@@ -153,13 +161,15 @@ class BaseScanner(ABC):
             if _is_time_based(payload):
                 # Time-based payloads run serially to preserve timing accuracy.
                 async with self._time_based_lock:
+                    if self._rate_limiter is not None:
+                        await self._rate_limiter.acquire()
                     hits = await self._retry_detect(vector, payload)
             else:
                 async with payload_sem:
                     if abort.is_set():
                         return
-                    if rps > 0:
-                        await asyncio.sleep(1.0 / rps)
+                    if self._rate_limiter is not None:
+                        await self._rate_limiter.acquire()
                     hits = await self._retry_detect(vector, payload)
 
             if hits:

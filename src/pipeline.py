@@ -19,6 +19,7 @@ from src.analysis.report_generator import ReportGenerator
 from src.analysis.severity_scorer import SeverityScorer
 from src.analysis.validator import Validator
 from src.core.config import Settings
+from src.core.rate_limiter import get_rate_limiter
 from src.crawler.crawler import Crawler, StoredXSSHit
 from src.fuzzing.fuzzer import Fuzzer
 from src.vectors.models import AttackVector, CrawledPage, SurfaceType, VulnType
@@ -63,7 +64,15 @@ class Pipeline:
         # ------------------------------------------------------------------
         # Module 3 — Fuzzing
         # ------------------------------------------------------------------
-        fuzzer = Fuzzer(self._settings, session_cookies=crawler.session_cookies)
+        # Single rate limiter shared across every scanner so that
+        # ``--requests-per-second`` controls the *combined* outbound rate
+        # rather than the per-scanner rate.
+        rate_limiter = get_rate_limiter(self._settings.requests_per_second)
+        fuzzer = Fuzzer(
+            self._settings,
+            session_cookies=crawler.session_cookies,
+            rate_limiter=rate_limiter,
+        )
         raw_findings = await fuzzer.run(vectors)
 
         # Module 3b — Stored XSS second pass
@@ -97,6 +106,7 @@ class Pipeline:
             vectors_found=len(vectors),
             findings=scored,
             summary=self._build_summary(scored),
+            config=self._settings.model_dump(exclude={"auth_password", "dvwa_password", "db_path"}),
         )
 
         generator = ReportGenerator(self._settings, self._scan_dir)

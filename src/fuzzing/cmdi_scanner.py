@@ -10,6 +10,7 @@ from loguru import logger
 from src.analysis.models import Confidence, RawFinding
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
+from src.core.rate_limiter import GlobalRateLimiter
 from src.vectors.models import AttackVector, VulnType
 
 from .base_scanner import BaseScanner, _format_exc
@@ -63,8 +64,13 @@ class CMDiScanner(BaseScanner):
 
     VULN_TYPE = VulnType.CMDI
 
-    def __init__(self, settings: Settings, http_client: HTTPClient) -> None:
-        super().__init__(settings, http_client)
+    def __init__(
+        self,
+        settings: Settings,
+        http_client: HTTPClient,
+        rate_limiter: GlobalRateLimiter | None = None,
+    ) -> None:
+        super().__init__(settings, http_client, rate_limiter)
 
     async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Try one payload; return a finding if CMDi evidence is found."""

@@ -6,6 +6,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from src.vectors.models import AttackVector, VulnType
 
@@ -90,3 +91,6 @@ class ScanReport:
     vectors_found: int
     findings: list[ValidatedFinding] = field(default_factory=list)
     summary: dict[str, int] = field(default_factory=dict)
+    # Effective Settings dump (sensitive fields excluded) so the analyst can
+    # audit exactly which configuration produced this scan.
+    config: dict[str, Any] = field(default_factory=dict)

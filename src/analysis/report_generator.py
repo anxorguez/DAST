@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 import aiosqlite
@@ -16,6 +17,69 @@ from src.core.config import Settings
 from src.core.exceptions import ReportError
 
 _TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
+
+# Group → field name mapping used to render the effective configuration in
+# the HTML report.  Fields not listed here fall under the "Other" bucket so
+# new Settings attributes still appear in the report without code changes.
+_CONFIG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Target", ("target_url",)),
+    (
+        "Speed / footprint",
+        ("concurrent_vectors", "concurrent_payloads", "requests_per_second"),
+    ),
+    (
+        "Coverage / scope",
+        (
+            "max_depth",
+            "max_pages",
+            "max_payloads_per_vector",
+            "payload_types",
+            "request_timeout",
+            "concurrent_pages",
+            "scanner_http_retries",
+            "scanner_vector_timeout_seconds",
+        ),
+    ),
+    (
+        "Authentication",
+        (
+            "auth_enabled",
+            "auth_url",
+            "auth_username",
+            "auth_username_field",
+            "auth_password_field",
+            "auth_success_url",
+        ),
+    ),
+    ("Output", ("output_dir", "log_level")),
+    (
+        "Test target (DVWA)",
+        ("dvwa_security_level", "dvwa_username"),
+    ),
+)
+
+
+def _group_config_for_template(config: dict[str, Any]) -> list[tuple[str, list[tuple[str, Any]]]]:
+    """Return ``config`` partitioned into ``(group_name, [(key, value), ...])`` pairs.
+
+    Fields listed in ``_CONFIG_GROUPS`` appear in their declared section in
+    declared order; remaining fields are gathered under ``Other`` so that
+    no setting is silently dropped from the report.
+    """
+    seen: set[str] = set()
+    grouped: list[tuple[str, list[tuple[str, Any]]]] = []
+    for group_name, keys in _CONFIG_GROUPS:
+        rows: list[tuple[str, Any]] = []
+        for key in keys:
+            if key in config:
+                rows.append((key, config[key]))
+                seen.add(key)
+        if rows:
+            grouped.append((group_name, rows))
+    other_rows: list[tuple[str, Any]] = [(k, v) for k, v in config.items() if k not in seen]
+    if other_rows:
+        grouped.append(("Other", other_rows))
+    return grouped
 
 
 # ---------------------------------------------------------------------------
@@ -198,10 +262,8 @@ class ReportGenerator:
             report=report,
             generated_at=datetime.utcnow(),
             duration_seconds=duration_secs,
-            concurrent_vectors=self._settings.concurrent_vectors,
-            concurrent_payloads=self._settings.concurrent_payloads,
-            requests_per_second=self._settings.requests_per_second,
-            max_depth=self._settings.max_depth,
+            config=report.config,
+            config_groups=_group_config_for_template(report.config),
             started_date=_fmt_date(report.started_at),
             started_time=_fmt_time(report.started_at),
             finished_date=_fmt_date(report.finished_at),
@@ -252,6 +314,7 @@ def _report_to_dict(report: ScanReport) -> dict[str, object]:
         "vectors_found": report.vectors_found,
         "total_findings": len(report.findings),
         "summary": report.summary,
+        "config": report.config,
         "findings": [_finding_to_dict(f) for f in report.findings],
     }
 
