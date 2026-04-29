@@ -74,7 +74,7 @@ Tras completar cualquier tarea:
 Cuando se cree o modifique una funcionalidad:
 
 1. `docker compose up -d dvwa db && docker compose build dast-app`
-2. `docker compose run --rm dast-app --url http://dvwa --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 --depth 3`
+2. `docker compose run --rm dast-app --url http://dvwa --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 --depth 3 --max-pages 100 --max-payloads-per-vector 50 --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect --request-timeout 30`
 3. Revisar la salida en consola y los archivos en `reports/`
 4. No dar la tarea por terminada hasta que la salida sea la esperada
 
@@ -151,8 +151,10 @@ pytest tests/unit/ --cov=src --cov-report=term-missing
 ./start.sh
 docker compose build dast-app
 docker compose run --rm dast-app --url http://dvwa \
-    --concurrent-vectors 5 --concurrent-payloads 10 \
-    --requests-per-second 0 --depth 3
+    --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
+    --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+    --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+    --request-timeout 30
 docker compose logs dast-app
 ./stop.sh
 ```
@@ -165,12 +167,28 @@ Todo va a través de `src/core/config.py` (clase `Settings`, Pydantic BaseSettin
 Variables de entorno o `.env` para los valores por defecto; los flags de CLI tienen prioridad.
 Nunca hardcodear URLs, rutas o credenciales en el código.
 
-Cuatro parámetros de tuning expuestos directamente en la CLI:
+**cv/cp/rps son knobs de velocidad; depth/max-pages/max-payloads-per-vector/
+payload-types/request-timeout son knobs de cobertura.** Los primeros cambian
+cuán rápido y cuán visible es el escaneo; los segundos cambian qué se prueba
+y, por tanto, el número de findings.
+
+Velocidad / huella:
 
 - `--concurrent-vectors` (env `CONCURRENT_VECTORS`, default `5`) — vectores en paralelo
 - `--concurrent-payloads` (env `CONCURRENT_PAYLOADS`, default `10`) — payloads por scanner
-- `--requests-per-second` (env `REQUESTS_PER_SECOND`, default `0`) — rate limit global (0 = sin límite)
+- `--requests-per-second` (env `REQUESTS_PER_SECOND`, default `0`) — rate limit GLOBAL compartido entre todos los scanners (0 = sin límite)
+
+Cobertura / alcance:
+
 - `--depth` (env `MAX_DEPTH`, default `3`) — profundidad BFS del crawler
+- `--max-pages` (env `MAX_PAGES`, default `100`) — tope absoluto de páginas
+- `--max-payloads-per-vector` (env `MAX_PAYLOADS_PER_VECTOR`, default `50`) — palanca dominante de coste
+- `--payload-types` (env `PAYLOAD_TYPES`, default CSV completo) — clases de scanner activas
+- `--request-timeout` (env `REQUEST_TIMEOUT`, default `30`) — timeout HTTP por petición
+
+Cada `report.html`/`report.json` incluye un bloque "Effective Configuration"
+con el dump completo de los Settings usados, para que el analista pueda
+auditar la combinación efectiva.
 
 ---
 
@@ -188,25 +206,20 @@ Al terminar cualquier tarea, muestra un bloque de commits y de git adds listo pa
 
 ---
 
-**git adds para esta tarea:**
+**git adds y commits para esta tarea:**
 
 git add 1 —
 - `git add archivos`
 
+Commit 1 — `<tipo>(<scope>): <descripción>`
+- `git commit -m "<tipo>(<scope>): <descripción>"
+
 git add 2 — 
 - `git add archivos`
 
----
-
----
-
-**Commits para esta tarea:**
-
-Commit 1 — `<tipo>(<scope>): <descripción>`
-- `git commit -m "<tipo>(<scope>): <descripción>"`
-
 Commit 2 — `<tipo>(<scope>): <descripción>`
-- `git commit -m "<tipo>(<scope>): <descripción>"`
+- `git commit -m "<tipo>(<scope>): <descripción>"
+
 
 ---
 
@@ -215,3 +228,4 @@ Reglas:
 - Un commit por cambio lógico (no agrupar todo en uno).
 - Nunca ejecutar los comandos git — solo mostrarlos para hacer ctrl+c ctrl+v.
 - Poner el bloque al final de la respuesta, después de todas las explicaciones.
+- por cada grupo de archivos, indica el git add y su git commit. 

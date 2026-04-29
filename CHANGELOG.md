@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Coverage knobs in the CLI and effective-config dump in the report
+
+- Four new CLI flags expose what used to be implicit defaults, giving the
+  analyst real control over coverage rather than only speed:
+  - `--max-payloads-per-vector` (env `MAX_PAYLOADS_PER_VECTOR`, default 50)
+    — dominant lever for cost and intrusiveness per (vector × scanner).
+  - `--max-pages` (env `MAX_PAGES`, default 100) — absolute crawl page cap.
+  - `--payload-types` (env `PAYLOAD_TYPES`, default = full CSV of all eight
+    scanner classes) — selects which scanner classes are active.
+  - `--request-timeout` (env `REQUEST_TIMEOUT`, default 30) — HTTP timeout.
+- The startup banner now logs the full effective Settings dump
+  (`Effective settings: {...}`), with `auth_password`, `dvwa_password`, and
+  `db_path` redacted.
+- `ScanReport` gained a `config: dict[str, Any]` field. `report.json`
+  serialises it; the HTML report renders an "Effective Configuration"
+  section grouped into Target / Speed / Coverage / Authentication / Output.
+
+### Changed — `--requests-per-second` is now a true global rate limit
+
+- **BREAKING (behaviour, not API)**: Previously each scanner instance applied
+  its own `1/rps` sleep, so the effective outbound rate was multiplied by
+  `concurrent_vectors × scanners_per_vector` (≈24× at default settings).
+  Now a single `GlobalRateLimiter` is created in the pipeline and shared
+  across every scanner, so `--requests-per-second N` corresponds 1:1 to N
+  combined outbound requests per second.
+- New module `src/core/rate_limiter.py` (`GlobalRateLimiter` + factory
+  `get_rate_limiter`). `BaseScanner.__init__` and `Fuzzer.__init__` accept
+  an optional `rate_limiter`; subclasses propagate it via `super().__init__`.
+
+### Changed — `docker-compose.yml` no longer overrides Settings defaults
+
+- The `dast-app` service `environment:` block was rewritten as a list of
+  pass-through entries (`- VAR`) so a host variable is forwarded only when
+  it is actually defined. With no host overrides, Pydantic Settings defaults
+  in `src/core/config.py` are the single source of truth.
+- This fixes an issue where `PAYLOAD_TYPES: ${PAYLOAD_TYPES:-sqli,xss,cmdi}`
+  silently restricted scans to three scanner classes by default (omitting
+  the five new ones added in Mejora 1).
+- `.env.example` now ships the full default for `PAYLOAD_TYPES` and includes
+  `MAX_PAYLOADS_PER_VECTOR`, `MAX_PAGES`, `REQUEST_TIMEOUT` for completeness.
+
 ### Changed — CLI tuning flags replace scan profiles
 
 - **BREAKING**: Removed the `--profile` CLI flag and the `SCAN_PROFILE` environment

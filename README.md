@@ -177,8 +177,10 @@ cp .env.example .env
 
 # 4. Run a scan against DVWA with the default tuning parameters
 docker compose run --rm dast-app --url http://dvwa \
-    --concurrent-vectors 5 --concurrent-payloads 10 \
-    --requests-per-second 0 --depth 3
+    --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
+    --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+    --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+    --request-timeout 30
 
 # 5. Find your report in ./reports/<scan_id>/
 ls reports/
@@ -246,24 +248,57 @@ fuzz the vulnerable pages: `/vulnerabilities/sqli/?id=...`,
 
 ### Tuning parameters
 
-The four tuning knobs that used to live in scan profiles are now exposed
-directly on the CLI. Each flag can also be set via its corresponding
-environment variable (CLI value wins on conflict).
+Eight tuning knobs are exposed directly on the CLI, split between two groups
+with very different semantics. Each flag can also be set via its environment
+variable (CLI wins on conflict).
+
+#### Velocidad / huella
+
+These flags control **how many requests run in parallel and at what rate**.
+They do NOT change what is tested, only how fast and how visible the scan is
+to the target's logs/IDS.
 
 | CLI flag                | Env var                | Default | Description                                       |
 |-------------------------|------------------------|---------|---------------------------------------------------|
 | `--concurrent-vectors`  | `CONCURRENT_VECTORS`   | 5       | Vectors fuzzed in parallel                        |
 | `--concurrent-payloads` | `CONCURRENT_PAYLOADS`  | 10      | Payloads tested in parallel per scanner           |
-| `--requests-per-second` | `REQUESTS_PER_SECOND`  | 0       | Global rate limit (0 = unlimited)                 |
-| `--depth`               | `MAX_DEPTH`            | 3       | Maximum BFS depth followed by the crawler         |
+| `--requests-per-second` | `REQUESTS_PER_SECOND`  | 0       | Global rate limit applied across ALL scanners (0 = unlimited) |
 
-Recommended combinations equivalent to the previous profiles:
+**Note**: `--requests-per-second` is a single shared limiter — the configured
+rate is the *combined* outbound rate across every scanner and vector, not a
+per-scanner rate.
 
-| Style       | `--concurrent-vectors` | `--concurrent-payloads` | `--requests-per-second` | `--depth` |
-|-------------|------------------------|-------------------------|-------------------------|-----------|
-| balanced    | 5                      | 10                      | 0                       | 3         |
-| aggressive  | 10                     | 20                      | 0                       | 5         |
-| stealth     | 2                      | 3                       | 5                       | 2         |
+#### Cobertura / alcance
+
+These flags control **what parts of the target are explored and how
+thoroughly**. They are the levers that change the number of findings.
+
+| CLI flag                     | Env var                  | Default | Description                                         |
+|------------------------------|--------------------------|---------|-----------------------------------------------------|
+| `--depth`                    | `MAX_DEPTH`              | 3       | Maximum BFS depth followed by the crawler           |
+| `--max-pages`                | `MAX_PAGES`              | 100     | Hard cap on pages crawled                           |
+| `--max-payloads-per-vector`  | `MAX_PAYLOADS_PER_VECTOR`| 50      | Max payloads per (vector × scanner). Dominant lever |
+| `--payload-types`            | `PAYLOAD_TYPES`          | (all 8) | CSV of active scanner classes                       |
+| `--request-timeout`          | `REQUEST_TIMEOUT`        | 30      | HTTP request timeout in seconds                     |
+
+`--payload-types` accepts any combination of: `sqli`, `xss`, `cmdi`, `ssrf`,
+`xxe`, `deserialization`, `path_traversal`, `open_redirect`.
+
+#### Recommended combinations
+
+The three columns below reproduce the behaviour of the legacy
+default/aggressive/stealth profiles, now expressed in terms of the eight flags.
+
+| Style          | cv | cp | rps | depth | pages | mppv | payload-types  |
+|----------------|----|----|-----|-------|-------|------|----------------|
+| **minimal**    | 1  | 1  | 1   | 1     | 5     | 5    | sqli           |
+| **balanced**   | 5  | 10 | 0   | 3     | 100   | 50   | (all 8)        |
+| **aggressive** | 10 | 20 | 0   | 5     | 500   | 200  | (all 8)        |
+| **stealth**    | 2  | 3  | 5   | 2     | 50    | 20   | (all 8)        |
+
+The HTML and JSON reports include an "Effective Configuration" block dumping
+every Settings field used for the run, so the analyst can verify exactly which
+combination produced the findings.
 
 ---
 
