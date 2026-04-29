@@ -75,6 +75,17 @@ def _make_report(scan_dir: Path) -> ScanReport:
         vectors_found=3,
         findings=[finding],
         summary={"critical": 1, "high": 0, "medium": 0, "low": 0, "info": 0},
+        config={
+            "target_url": "http://localhost:8080",
+            "concurrent_vectors": 7,
+            "concurrent_payloads": 11,
+            "requests_per_second": 0,
+            "max_depth": 2,
+            "max_pages": 25,
+            "max_payloads_per_vector": 13,
+            "payload_types": "sqli,xss",
+            "request_timeout": 17,
+        },
     )
 
 
@@ -104,6 +115,39 @@ async def test_html_report_written(tmp_path: Path) -> None:
     content = html_file.read_text(encoding="utf-8")
     assert "test_scan_001" in content
     assert "CRITICAL" in content
+
+
+@pytest.mark.asyncio
+async def test_html_report_includes_effective_configuration(tmp_path: Path) -> None:
+    """The Effective Configuration block must render every Settings field
+    populated on the ScanReport, grouped under the documented sections."""
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    content = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "Effective Configuration" in content
+    assert "Speed / footprint" in content
+    assert "Coverage / scope" in content
+    # Specific knob values must appear so the analyst can verify them.
+    assert "concurrent_vectors" in content
+    assert "max_payloads_per_vector" in content
+    assert "sqli,xss" in content
+
+
+@pytest.mark.asyncio
+async def test_json_report_includes_config_dump(tmp_path: Path) -> None:
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    data = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert "config" in data
+    assert data["config"]["concurrent_vectors"] == 7
+    assert data["config"]["max_payloads_per_vector"] == 13
+    assert data["config"]["payload_types"] == "sqli,xss"
 
 
 @pytest.mark.asyncio
