@@ -31,7 +31,7 @@ What actually happened. Include the full error message and stack trace if availa
 - Docker version:
 - docker compose version:
 - Target application and version (e.g. DVWA 2.3):
-- Tuning parameters used (--concurrent-vectors, --concurrent-payloads, --requests-per-second, --depth):
+- Tuning parameters used (--concurrent-vectors, --concurrent-payloads, --requests-per-second, --depth, --max-pages, --max-payloads-per-vector, --payload-types, --request-timeout):
 
 ## Logs
 
