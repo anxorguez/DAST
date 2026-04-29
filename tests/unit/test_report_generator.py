@@ -86,6 +86,7 @@ def _make_report(scan_dir: Path) -> ScanReport:
             "payload_types": "sqli,xss",
             "request_timeout": 17,
         },
+        cli_command="python -m src.main --url http://localhost:8080 --output test_scan_001",
     )
 
 
@@ -148,6 +149,23 @@ async def test_json_report_includes_config_dump(tmp_path: Path) -> None:
     assert data["config"]["concurrent_vectors"] == 7
     assert data["config"]["max_payloads_per_vector"] == 13
     assert data["config"]["payload_types"] == "sqli,xss"
+
+
+@pytest.mark.asyncio
+async def test_html_and_json_include_cli_command(tmp_path: Path) -> None:
+    """The exact CLI command must appear in both report.html and report.json
+    so the analyst can reproduce the scan from the artefacts alone."""
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "CLI Command" in html
+    assert "--output test_scan_001" in html
+
+    data = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert data["cli_command"] == report.cli_command
 
 
 @pytest.mark.asyncio

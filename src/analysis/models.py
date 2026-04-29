@@ -94,3 +94,6 @@ class ScanReport:
     # Effective Settings dump (sensitive fields excluded) so the analyst can
     # audit exactly which configuration produced this scan.
     config: dict[str, Any] = field(default_factory=dict)
+    # Exact CLI invocation that produced this scan, included so the analyst
+    # can reproduce the run from the report alone.
+    cli_command: str = ""

@@ -27,7 +27,14 @@ class Settings(BaseSettings):
     target_url: str = ""
 
     # --- Output -------------------------------------------------------
+    # ``output_dir`` is the base directory under which scan folders are
+    # created (the *root* of ``reports/``).  ``scan_name`` is the name (or
+    # path) of the per-scan subdirectory; if ``None``, a timestamp+random
+    # ID is generated at runtime.  Splitting the two concerns means that
+    # ``--output`` can carry the *name* the user wants while the base stays
+    # configurable via ``--output-base`` / ``OUTPUT_DIR``.
     output_dir: str = "/app/reports"
+    scan_name: str | None = None
     log_level: str = "INFO"
 
     # --- Crawler ------------------------------------------------------

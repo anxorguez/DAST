@@ -15,6 +15,15 @@ The flags split into two groups:
 * Cobertura / alcance — control which parts of the target are explored and
   how thoroughly: ``--depth``, ``--max-pages``, ``--max-payloads-per-vector``,
   ``--payload-types``, ``--request-timeout``.
+
+Output directory rules:
+
+* No scan directory is created until the scan actually starts. ``--help``,
+  ``--version`` or argument-validation failures leave ``reports/`` untouched.
+* A successful scan writes its artefacts under ``reports/<scan_id>/`` (or the
+  name passed via ``--output``).
+* A scan that aborts before completion is persisted under
+  ``reports/debug/<scan_id>/scan.log`` — only the log is kept.
 """
 
 from __future__ import annotations
@@ -22,6 +31,8 @@ from __future__ import annotations
 import asyncio
 import binascii
 import os
+import shlex
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -49,6 +60,71 @@ def _make_scan_id() -> str:
 def _safe_dump(settings: Settings) -> dict[str, Any]:
     """Return Settings as a dict with sensitive fields removed."""
     return settings.model_dump(exclude=set(_SETTINGS_REDACT))
+
+
+def _resolve_scan_dir(settings: Settings) -> Path:
+    """Compute the planned scan directory without creating it on disk.
+
+    Priority:
+        1. ``SCAN_DIR`` environment variable (set by ``entrypoint.sh``) wins,
+           because the shell already resolved the user's intent (including
+           parsing ``--output``).
+        2. ``settings.scan_name`` — relative paths are joined to
+           ``output_dir``; absolute paths are used as-is.
+        3. Fallback to a timestamp+random ID under ``output_dir``.
+    """
+    scan_dir_env = os.environ.get("SCAN_DIR", "")
+    if scan_dir_env:
+        return Path(scan_dir_env)
+    if settings.scan_name:
+        candidate = Path(settings.scan_name)
+        return candidate if candidate.is_absolute() else Path(settings.output_dir) / candidate
+    return Path(settings.output_dir) / _make_scan_id()
+
+
+def _format_cli_command() -> str:
+    """Reconstruct the original CLI invocation as a shell-quoted string.
+
+    Used so the report can include the exact command that produced it. We
+    rebuild from ``sys.argv`` rather than from Click's parsed values to keep
+    the surface form (flag aliases, ``=`` syntax, order) exactly as the user
+    typed it.
+    """
+    return " ".join(shlex.quote(arg) for arg in sys.argv)
+
+
+def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
+    """Relocate the scan log to ``reports/debug/<basename>/scan.log``.
+
+    Removes ``scan_dir`` afterwards if it is left empty so a failed scan
+    leaves no orphan directory next to successful ones.
+
+    Returns the new log path, or ``None`` if no log existed to move.
+    """
+    # Stop loguru from holding the file handle so the move is safe on Windows.
+    logger.remove()
+
+    src = scan_dir / "scan.log"
+    if not src.exists():
+        # Nothing to persist — still try to clean up an empty scan_dir.
+        try:
+            scan_dir.rmdir()
+        except OSError:
+            pass
+        return None
+
+    debug_root = output_base / "debug" / scan_dir.name
+    debug_root.mkdir(parents=True, exist_ok=True)
+    dst = debug_root / "scan.log"
+    shutil.move(str(src), str(dst))
+
+    try:
+        scan_dir.rmdir()
+    except OSError:
+        # scan_dir still has other files (rotation artefacts, etc.); leave it.
+        pass
+
+    return dst
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
@@ -154,8 +230,20 @@ def _safe_dump(settings: Settings) -> dict[str, Any]:
 @click.option(
     "--output",
     default=None,
+    envvar="SCAN_NAME",
+    help=(
+        "Name of the scan output directory under the reports base "
+        "(default base: ./reports). Accepts a plain name "
+        "('smoke_test_express'), a relative path with subdirs ('runs/smoke1') "
+        "or an absolute path. If omitted, a timestamp_random ID is generated. "
+        "Re-running with the same name silently overwrites the previous scan."
+    ),
+)
+@click.option(
+    "--output-base",
+    default=None,
     envvar="OUTPUT_DIR",
-    help="Directory where scan output folders are created. Defaults to ./reports.",
+    help="Base directory where scan folders live. Defaults to ./reports.",
 )
 @click.option(
     "--log-level",
@@ -175,11 +263,12 @@ def main(
     payload_types: str,
     request_timeout: int,
     output: str | None,
+    output_base: str | None,
     log_level: str | None,
 ) -> None:
     """DAST Framework — automated injection vulnerability scanner."""
     # ------------------------------------------------------------------
-    # Build settings
+    # Build settings (no disk side-effects yet)
     # ------------------------------------------------------------------
     overrides: dict[str, object] = {
         "target_url": url,
@@ -193,26 +282,26 @@ def main(
         "request_timeout": request_timeout,
     }
     if output:
-        overrides["output_dir"] = output
+        overrides["scan_name"] = output
+    if output_base:
+        overrides["output_dir"] = output_base
     if log_level:
         overrides["log_level"] = log_level
 
     settings = get_settings(**overrides)
 
-    # ------------------------------------------------------------------
-    # Create scan output directory
-    # ------------------------------------------------------------------
-    scan_id = _make_scan_id()
+    cli_command = _format_cli_command()
 
-    # Prefer SCAN_DIR from environment (set by entrypoint.sh) so both the
-    # shell script and Python agree on the same directory.
-    scan_dir_env = os.environ.get("SCAN_DIR", "")
-    if scan_dir_env:
-        scan_dir = Path(scan_dir_env)
-    else:
-        base = Path(settings.output_dir)
-        scan_dir = base / scan_id
-
+    # ------------------------------------------------------------------
+    # Resolve the scan output directory and create it.  Creation is
+    # deferred to this point so that commands which never reach main()'s
+    # body (``--help``, validation failures) leave ``reports/`` untouched.
+    # ------------------------------------------------------------------
+    scan_dir = _resolve_scan_dir(settings)
+    output_base_path = Path(settings.output_dir)
+    reusing_existing = (
+        settings.scan_name is not None and scan_dir.exists() and any(scan_dir.iterdir())
+    )
     scan_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
@@ -220,10 +309,16 @@ def main(
     # ------------------------------------------------------------------
     setup_logger(log_level=settings.log_level, log_file=scan_dir / "scan.log")
 
+    if reusing_existing:
+        logger.info(
+            "Reusing existing scan directory: {p} (contents will be overwritten)",
+            p=str(scan_dir),
+        )
+
     logger.info(
         "DAST Framework starting | url={u} | cv={cv} | cp={cp} | rps={rps} | "
         "depth={d} | max_pages={mp} | max_payloads_per_vector={mppv} | "
-        "payload_types={pt} | request_timeout={rt} | scan_id={s}",
+        "payload_types={pt} | request_timeout={rt} | scan_dir={s}",
         u=url,
         cv=concurrent_vectors,
         cp=concurrent_payloads,
@@ -233,25 +328,35 @@ def main(
         mppv=max_payloads_per_vector,
         pt=payload_types,
         rt=request_timeout,
-        s=scan_id,
+        s=str(scan_dir),
     )
     logger.info("Effective settings: {s}", s=_safe_dump(settings))
+    logger.info("CLI command: {c}", c=cli_command)
 
     # ------------------------------------------------------------------
     # Run pipeline
     # ------------------------------------------------------------------
-    pipeline = Pipeline(settings, scan_dir)
+    pipeline = Pipeline(settings, scan_dir, cli_command=cli_command)
 
     try:
         report = asyncio.run(pipeline.run())
     except DASTError as exc:
         logger.error("Scan aborted: {e}", e=exc)
+        debug_path = _move_log_to_debug(scan_dir, output_base_path)
+        if debug_path is not None:
+            click.echo(f"Scan failed. Debug log: {debug_path}", err=True)
         sys.exit(1)
     except KeyboardInterrupt:
         logger.warning("Scan interrupted by user")
+        debug_path = _move_log_to_debug(scan_dir, output_base_path)
+        if debug_path is not None:
+            click.echo(f"Scan interrupted. Debug log: {debug_path}", err=True)
         sys.exit(130)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Unexpected error: {e}", e=exc)
+        debug_path = _move_log_to_debug(scan_dir, output_base_path)
+        if debug_path is not None:
+            click.echo(f"Scan failed. Debug log: {debug_path}", err=True)
         sys.exit(1)
 
     # ------------------------------------------------------------------

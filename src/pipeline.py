@@ -29,9 +29,15 @@ from src.vectors.vector_analyzer import VectorAnalyzer
 class Pipeline:
     """Coordinates the crawl → vector identification → fuzzing → reporting cycle."""
 
-    def __init__(self, settings: Settings, scan_dir: Path) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        scan_dir: Path,
+        cli_command: str = "",
+    ) -> None:
         self._settings = settings
         self._scan_dir = scan_dir
+        self._cli_command = cli_command
 
     async def run(self) -> ScanReport:
         """Execute the full pipeline and return the completed ScanReport.
@@ -107,6 +113,7 @@ class Pipeline:
             findings=scored,
             summary=self._build_summary(scored),
             config=self._settings.model_dump(exclude={"auth_password", "dvwa_password", "db_path"}),
+            cli_command=self._cli_command,
         )
 
         generator = ReportGenerator(self._settings, self._scan_dir)

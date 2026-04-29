@@ -51,6 +51,18 @@
     .meta-table { border-collapse: collapse; width: 100%; }
     .meta-table td { padding: 8px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
     .meta-table td:first-child { font-weight: 600; width: 200px; color: #555; }
+    .meta-table code.cli-command {
+      display: block;
+      background: #1a1a2e;
+      color: #f5f5f5;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
 
     /* Findings filters */
     .findings-filters {
@@ -446,6 +458,12 @@
           <tr><td>Duration</td><td>{{ duration_seconds | round(2) }} seconds</td></tr>
           <tr><td>Pages Crawled</td><td>{{ report.pages_crawled }}</td></tr>
           <tr><td>Vectors Analyzed</td><td>{{ report.vectors_found }}</td></tr>
+          {% if cli_command %}
+          <tr>
+            <td>CLI Command</td>
+            <td><code class="cli-command">{{ cli_command }}</code></td>
+          </tr>
+          {% endif %}
         </tbody>
       </table>
     </section>

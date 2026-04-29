@@ -51,7 +51,7 @@ _CONFIG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "auth_success_url",
         ),
     ),
-    ("Output", ("output_dir", "log_level")),
+    ("Output", ("output_dir", "scan_name", "log_level")),
     (
         "Test target (DVWA)",
         ("dvwa_security_level", "dvwa_username"),
@@ -264,6 +264,7 @@ class ReportGenerator:
             duration_seconds=duration_secs,
             config=report.config,
             config_groups=_group_config_for_template(report.config),
+            cli_command=report.cli_command,
             started_date=_fmt_date(report.started_at),
             started_time=_fmt_time(report.started_at),
             finished_date=_fmt_date(report.finished_at),
@@ -307,6 +308,7 @@ def _report_to_dict(report: ScanReport) -> dict[str, object]:
     return {
         "scan_id": report.scan_id,
         "target_url": report.target_url,
+        "cli_command": report.cli_command,
         "started_at": report.started_at.isoformat(),
         "finished_at": report.finished_at.isoformat(),
         "duration_seconds": (report.finished_at - report.started_at).total_seconds(),
