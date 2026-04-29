@@ -10,29 +10,38 @@ services:
       context: .
       dockerfile: Dockerfile
     image: dast:latest
+    # All scanner knobs (depth, payloads, concurrency, timeouts, auth) are
+    # passed through ONLY when the host environment defines them.  When a
+    # variable is unset on the host the corresponding env var is NOT injected
+    # into the container, so Pydantic Settings defaults in src/core/config.py
+    # remain the single source of truth.  TARGET_URL and OUTPUT_DIR are kept
+    # explicit because they are mandatory or container-specific.
     environment:
-      TARGET_URL:              ${TARGET_URL:-http://dvwa}
-      OUTPUT_DIR:              /app/reports
-      LOG_LEVEL:               ${LOG_LEVEL:-INFO}
-      MAX_DEPTH:               ${MAX_DEPTH:-3}
-      MAX_PAGES:               ${MAX_PAGES:-100}
-      REQUEST_TIMEOUT:         ${REQUEST_TIMEOUT:-30}
-      CONCURRENT_PAGES:        ${CONCURRENT_PAGES:-5}
-      CONCURRENT_VECTORS:      ${CONCURRENT_VECTORS:-5}
-      CONCURRENT_PAYLOADS:     ${CONCURRENT_PAYLOADS:-10}
-      REQUESTS_PER_SECOND:     ${REQUESTS_PER_SECOND:-0}
-      AUTH_ENABLED:            ${AUTH_ENABLED:-false}
-      AUTH_URL:                ${AUTH_URL:-}
-      AUTH_USERNAME:           ${AUTH_USERNAME:-}
-      AUTH_PASSWORD:           ${AUTH_PASSWORD:-}
-      AUTH_USERNAME_FIELD:     ${AUTH_USERNAME_FIELD:-username}
-      AUTH_PASSWORD_FIELD:     ${AUTH_PASSWORD_FIELD:-password}
-      AUTH_SUCCESS_URL:        ${AUTH_SUCCESS_URL:-}
-      PAYLOAD_TYPES:           ${PAYLOAD_TYPES:-sqli,xss,cmdi}
-      MAX_PAYLOADS_PER_VECTOR: ${MAX_PAYLOADS_PER_VECTOR:-50}
-      DVWA_SECURITY_LEVEL:     ${DVWA_SECURITY_LEVEL:-low}
-      DVWA_USERNAME:           ${DVWA_USERNAME:-admin}
-      DVWA_PASSWORD:           ${DVWA_PASSWORD:-password}
+      - TARGET_URL=${TARGET_URL:-http://dvwa}
+      - OUTPUT_DIR=/app/reports
+      # Tuning knobs — host-controlled overrides (CLI flags also win over these)
+      - LOG_LEVEL
+      - MAX_DEPTH
+      - MAX_PAGES
+      - REQUEST_TIMEOUT
+      - CONCURRENT_PAGES
+      - CONCURRENT_VECTORS
+      - CONCURRENT_PAYLOADS
+      - REQUESTS_PER_SECOND
+      - PAYLOAD_TYPES
+      - MAX_PAYLOADS_PER_VECTOR
+      # Authentication — only takes effect when AUTH_ENABLED=true on the host
+      - AUTH_ENABLED
+      - AUTH_URL
+      - AUTH_USERNAME
+      - AUTH_PASSWORD
+      - AUTH_USERNAME_FIELD
+      - AUTH_PASSWORD_FIELD
+      - AUTH_SUCCESS_URL
+      # DVWA test fixture (consumed by integration helpers, not the scanner)
+      - DVWA_SECURITY_LEVEL
+      - DVWA_USERNAME
+      - DVWA_PASSWORD
     volumes:
       - ./reports:/app/reports
     networks:
