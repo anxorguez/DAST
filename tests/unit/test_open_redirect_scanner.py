@@ -135,3 +135,62 @@ async def test_no_finding_on_clean_200(settings: Settings, mock_http: MagicMock)
     finding = await scanner._detect(vector, "/home")
 
     assert finding is None
+
+
+@pytest.mark.asyncio
+async def test_request_uses_no_follow_redirects(settings: Settings, mock_http: MagicMock) -> None:
+    """The scanner must request with follow_redirects=False.
+
+    Regression for the ssrf_open_redirect 0-finding scan: HTTPClient is
+    constructed with follow_redirects=True for the rest of the fuzz
+    pipeline, so without per-request override the 302 + Location header
+    we depend on is silently consumed and the scanner sees the followed
+    page instead.
+    """
+    redirect_resp = _mock_response(
+        "", status=302, headers={"location": "https://evil.com/phishing"}
+    )
+    mock_http.get_no_retry = AsyncMock(return_value=redirect_resp)
+
+    scanner = OpenRedirectScanner(settings, mock_http)
+    await scanner._detect(_make_vector(), "https://evil.com/phishing")
+
+    mock_http.get_no_retry.assert_awaited_once()
+    call_kwargs = mock_http.get_no_retry.await_args.kwargs
+    assert call_kwargs.get("follow_redirects") is False
+
+
+@pytest.mark.asyncio
+async def test_protocol_relative_redirect_detected(
+    settings: Settings, mock_http: MagicMock
+) -> None:
+    """``Location: //evil.com`` (protocol-relative) is a confirmed open redirect."""
+    redirect_resp = _mock_response("", status=302, headers={"location": "//evil.com/landing"})
+    mock_http.get_no_retry = AsyncMock(return_value=redirect_resp)
+
+    scanner = OpenRedirectScanner(settings, mock_http)
+    finding = await scanner._detect(_make_vector(), "//evil.com/landing")
+
+    assert finding is not None
+    assert finding.confidence == Confidence.CONFIRMED
+
+
+@pytest.mark.asyncio
+async def test_send_no_follow_increments_response_tally(
+    settings: Settings, mock_http: MagicMock
+) -> None:
+    """A successful redirect probe must register as a valid HTTP response.
+
+    Regression for the early-abort false trip: ``_send_no_follow`` used
+    to bypass BaseScanner's counters, so 3 valid 302 responses still
+    looked like '0 valid HTTP responses' to the abort heuristic and the
+    scanner aborted on the 4th payload.
+    """
+    redirect_resp = _mock_response("", status=302, headers={"location": "http://other.test/"})
+    mock_http.get_no_retry = AsyncMock(return_value=redirect_resp)
+
+    scanner = OpenRedirectScanner(settings, mock_http)
+    await scanner._detect(_make_vector(), "http://other.test/")
+
+    assert scanner._payload_response_tally == 1
+    assert scanner._payload_net_error_tally == 0

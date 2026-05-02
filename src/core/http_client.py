@@ -148,10 +148,13 @@ class HTTPClient:
         *,
         params: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
     ) -> httpx.Response:
         """GET without retry (used for time-based measurements)."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.get(url, params=params, headers=headers)
+        return await self._client.get(
+            url, params=params, headers=headers, follow_redirects=follow_redirects
+        )
 
     async def post_no_retry(
         self,
@@ -160,10 +163,13 @@ class HTTPClient:
         data: dict[str, str] | None = None,
         content: bytes | None = None,
         headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
     ) -> httpx.Response:
         """POST without retry (used for time-based measurements)."""
         assert self._client is not None, "HTTPClient used outside context manager"
-        return await self._client.post(url, data=data, content=content, headers=headers)
+        return await self._client.post(
+            url, data=data, content=content, headers=headers, follow_redirects=follow_redirects
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

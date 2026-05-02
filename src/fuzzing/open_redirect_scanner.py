@@ -25,7 +25,10 @@ from .base_scanner import BaseScanner, _format_exc
 _REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 
 # Domains used in our redirect payloads to detect if the server echoes them.
-_PROBE_DOMAINS = frozenset({"evil.com"})
+# ``evil.com`` is the historical probe; ``evil.tld`` mirrors the canonical
+# OWASP example used in newer payload variants — keeping both lets the
+# scanner survive payload list updates without losing detections.
+_PROBE_DOMAINS = frozenset({"evil.com", "evil.tld", "attacker.com"})
 
 # Meta-refresh redirect pattern in HTML body.
 _META_REFRESH_PATTERN = re.compile(
@@ -43,9 +46,27 @@ _JS_REDIRECT_PATTERNS: list[re.Pattern[str]] = [
 
 
 def _is_external_url(url: str, probe_domains: frozenset[str]) -> bool:
-    """Return True if *url* resolves to one of *probe_domains*."""
+    """Return True if *url* resolves to one of *probe_domains*.
+
+    Tolerates the common attacker-controlled redirect shapes seen in the
+    wild: absolute URLs (``https://evil.tld``), protocol-relative URLs
+    (``//evil.tld``), URLs prefixed with whitespace or null bytes that
+    some servers don't strip, and URL-encoded slashes (``%2F%2Fevil.tld``).
+    """
+    if not url:
+        return False
     try:
-        parsed = urlparse(url if "://" in url else f"//{url}")
+        candidate = url.strip().lstrip("\x00")
+        # Decode percent-encoded leading slashes that some apps don't
+        # canonicalise before forwarding to ``Location``.
+        lowered = candidate.lower()
+        if lowered.startswith("%2f%2f"):
+            candidate = "//" + candidate[6:]
+        # ``urlparse`` can't see the host of a bare ``evil.tld/path`` —
+        # prefix a scheme-less ``//`` so the netloc parses correctly.
+        if "://" not in candidate and not candidate.startswith("//"):
+            candidate = f"//{candidate}"
+        parsed = urlparse(candidate)
         host = (parsed.hostname or "").lower()
         return any(host == d or host.endswith(f".{d}") for d in probe_domains)
     except Exception:
@@ -156,13 +177,31 @@ class OpenRedirectScanner(BaseScanner):
     async def _send_no_follow(
         self, vector: AttackVector, payload: str
     ) -> tuple[httpx.Response, int]:
-        """Send request without following redirects to capture the 3xx response."""
+        """Send request without following redirects to capture the 3xx response.
+
+        The shared :class:`HTTPClient` is constructed with
+        ``follow_redirects=True`` so the fuzz-path scanners see the final
+        page; for open-redirect detection that hides the 302 + ``Location``
+        header which is exactly the signal we need.  We override the flag
+        per-request and update the BaseScanner counters inline so the
+        early-abort heuristic doesn't fire on a stream of valid 302s
+        (which would otherwise look like "0 valid HTTP responses").
+        """
         params = {**vector.extra_params, vector.field_name: payload}
 
         start = time.monotonic()
-        if vector.method == "POST":
-            response = await self._http.post_no_retry(vector.target_url, data=params)
-        else:
-            response = await self._http.get_no_retry(vector.target_url, params=params)
+        try:
+            if vector.method == "POST":
+                response = await self._http.post_no_retry(
+                    vector.target_url, data=params, follow_redirects=False
+                )
+            else:
+                response = await self._http.get_no_retry(
+                    vector.target_url, params=params, follow_redirects=False
+                )
+        except Exception:
+            self._payload_net_error_tally += 1
+            raise
         elapsed_ms = int((time.monotonic() - start) * 1000)
+        self._payload_response_tally += 1
         return response, elapsed_ms
