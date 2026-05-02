@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
+import secrets
 import time
 
 from loguru import logger
@@ -78,6 +80,14 @@ class SQLiScanner(BaseScanner):
         rate_limiter: GlobalRateLimiter | None = None,
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
+        # Cache of (target_url, field_name) → "is the endpoint reflective?".
+        # Filled lazily on the first UNION-based payload for a vector.
+        # ``True`` means a benign marker that contains no SQL syntax was
+        # echoed back verbatim — UNION-based detection by reflected marker
+        # cannot distinguish a real exfiltration from a plain echo on such
+        # an endpoint, so we suppress those findings.  See `_detect_union`.
+        self._reflective_cache: dict[tuple[str, str], bool] = {}
+        self._reflective_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
     async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
         """Try one payload and return a finding if a SQLi indicator is detected."""
@@ -172,6 +182,21 @@ class SQLiScanner(BaseScanner):
         return None
 
     async def _detect_union(self, vector: AttackVector, payload: str) -> RawFinding | None:
+        # Reflective-endpoint guard.  Pages like xss_r/xss_s/csp/fi simply echo
+        # the submitted value back into the body; UNION-based detection by
+        # reflected marker would flag every such endpoint as critical SQLi
+        # even though it touches no database.  Run a benign-marker probe
+        # once per (url, field) and skip UNION reporting if the endpoint
+        # is reflective.  Without this guard the "deepest" scans produce
+        # the most false positives (see analisis_10_escaneos.md).
+        if await self._is_reflective_endpoint(vector):
+            logger.debug(
+                "SQLi UNION skipped on reflective endpoint: {url} [{field}]",
+                url=vector.target_url,
+                field=vector.field_name,
+            )
+            return None
+
         response, elapsed = await self._send(vector, payload)
         if _UNION_MARKER in response.text:
             evidence = (
@@ -187,3 +212,44 @@ class SQLiScanner(BaseScanner):
                 evidence,
             )
         return None
+
+    async def _is_reflective_endpoint(self, vector: AttackVector) -> bool:
+        """Return True if a benign canary marker is reflected in the response.
+
+        Result is cached per (target_url, field_name); an asyncio Lock
+        prevents the canary request from being duplicated when many UNION
+        payloads run concurrently against the same vector.
+        """
+        cache_key = (vector.target_url, vector.field_name)
+        cached = self._reflective_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        lock = self._reflective_locks.setdefault(cache_key, asyncio.Lock())
+        async with lock:
+            cached = self._reflective_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
+            # Random suffix prevents caches/upstreams from short-circuiting
+            # the request and protects against cross-test bleed in unit tests.
+            canary = f"DASTCANARY{secrets.token_hex(6)}"
+            try:
+                response, _ = await self._send(vector, canary)
+            except Exception:
+                # Canary failed (network error / timeout).  Conservatively
+                # treat as non-reflective so a real UNION hit isn't
+                # discarded; if the endpoint is unreachable the UNION send
+                # will fail too and the regular detection path returns None.
+                self._reflective_cache[cache_key] = False
+                return False
+
+            reflective = canary in response.text
+            self._reflective_cache[cache_key] = reflective
+            if reflective:
+                logger.debug(
+                    "SQLi reflective endpoint detected: {url} [{field}] (canary echoed back)",
+                    url=vector.target_url,
+                    field=vector.field_name,
+                )
+            return reflective

@@ -94,3 +94,56 @@ async def test_union_marker_detection(settings: Settings, mock_http: MagicMock) 
 
     assert finding is not None
     assert finding.vuln_type == VulnType.SQLI
+
+
+@pytest.mark.asyncio
+async def test_union_suppressed_on_reflective_endpoint(
+    settings: Settings, mock_http: MagicMock
+) -> None:
+    """A page that echoes its input must NOT produce UNION-based findings.
+
+    Regression for the 42-FP UNION storm in sqli_monotematico_profundo:
+    xss_r/xss_s/csp/fi simply ``echo $_GET['name']`` so the union marker
+    appeared in the response without any database touching the request.
+    """
+
+    def _echo(*args: object, **kwargs: object) -> MagicMock:
+        # Whatever value is sent, echo it straight back.  This mirrors how
+        # DVWA's xss_r/xss_s pages behave — exactly the FP source.
+        data = kwargs.get("data") or {}
+        sent = next(iter(data.values())) if isinstance(data, dict) and data else ""
+        return _mock_response(f"<html><body>Hello {sent}</body></html>")
+
+    mock_http.post = AsyncMock(side_effect=_echo)
+    mock_http.post_no_retry = AsyncMock(side_effect=_echo)
+
+    scanner = SQLiScanner(settings, mock_http)
+    vector = _make_vector()
+    finding = await scanner._detect(vector, "' UNION SELECT 'DASTUNION7654321'--")
+
+    assert finding is None
+
+
+@pytest.mark.asyncio
+async def test_reflective_check_cached_per_vector(settings: Settings, mock_http: MagicMock) -> None:
+    """The canary probe runs at most once per (url, field)."""
+
+    call_log: list[str] = []
+
+    def _track(*args: object, **kwargs: object) -> MagicMock:
+        data = kwargs.get("data") or {}
+        sent = next(iter(data.values())) if isinstance(data, dict) and data else ""
+        call_log.append(str(sent))
+        return _mock_response(f"<html>{sent}</html>")
+
+    mock_http.post = AsyncMock(side_effect=_track)
+
+    scanner = SQLiScanner(settings, mock_http)
+    vector = _make_vector()
+    # Two consecutive UNION attempts on the same vector — only one canary
+    # request must be issued.
+    await scanner._detect(vector, "' UNION SELECT 'DASTUNION7654321'--")
+    await scanner._detect(vector, "1' UNION SELECT NULL,'DASTUNION7654321'--")
+
+    canary_calls = [c for c in call_log if c.startswith("DASTCANARY")]
+    assert len(canary_calls) == 1, f"Expected 1 canary request, got {len(canary_calls)}"
