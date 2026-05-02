@@ -10,6 +10,7 @@ from urllib.parse import urljoin, urlparse
 from loguru import logger
 from playwright.async_api import BrowserContext, Page, Request
 
+from src.analysis.models import CrawlStats
 from src.core.config import Settings
 from src.core.exceptions import AuthenticationError
 from src.vectors.models import CrawledPage
@@ -17,6 +18,45 @@ from src.vectors.models import CrawledPage
 from .browser_manager import BrowserManager
 from .form_extractor import extract_forms
 from .link_extractor import extract_links
+
+# File extensions that trigger a browser download instead of an HTML render.
+# Visiting these wastes a Playwright tab and produces a ``Download is starting``
+# warning per URL — there is no HTML for the form/link extractors to chew on,
+# so we skip them up-front.  Match against the URL path (lowercased), not the
+# full URL, to avoid being confused by query strings.
+_DOWNLOAD_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".pdf",
+        ".zip",
+        ".tar",
+        ".tar.gz",
+        ".tgz",
+        ".gz",
+        ".rar",
+        ".7z",
+        ".exe",
+        ".dmg",
+        ".iso",
+        ".msi",
+        ".deb",
+        ".rpm",
+        ".dist",
+        ".jar",
+        ".war",
+        ".bin",
+        ".apk",
+    }
+)
+
+
+def _is_download_url(url: str) -> bool:
+    """Return True if *url* points to a file that would trigger a download."""
+    try:
+        path = urlparse(url).path.lower()
+    except Exception:
+        return False
+    return any(path.endswith(ext) for ext in _DOWNLOAD_EXTENSIONS)
+
 
 # ---------------------------------------------------------------------------
 # Stored-XSS hit — lightweight struct used between crawler and pipeline.
@@ -57,6 +97,11 @@ class Crawler:
         # session established by pre-scan login. Each entry is Playwright's
         # cookie dict: {name, value, domain, path, ...}.
         self._session_cookies: list[dict[str, Any]] = []
+        # Why the crawl stopped — populated by ``_bfs_crawl`` and read by
+        # the pipeline so the report can distinguish "max-pages reached"
+        # from "frontier exhausted" and the analyst can tell whether
+        # raising the knob would help.
+        self._crawl_stats = CrawlStats()
 
     @property
     def session_cookies(self) -> list[dict[str, Any]]:
@@ -65,6 +110,11 @@ class Crawler:
         Empty if authentication was not enabled or crawl() has not yet run.
         """
         return list(self._session_cookies)
+
+    @property
+    def crawl_stats(self) -> CrawlStats:
+        """Diagnostics about why the BFS crawl stopped (see :class:`CrawlStats`)."""
+        return self._crawl_stats
 
     # -------------------------------------------------------------------
     # Public interface
@@ -260,6 +310,7 @@ class Crawler:
         queue: deque[tuple[str, int]] = deque([(self._settings.target_url, 0)])
         crawled: list[CrawledPage] = []
         in_queue: set[str] = {self._settings.target_url}
+        hit_max_pages = False
 
         while queue and len(crawled) < self._settings.max_pages:
             url, depth = queue.popleft()
@@ -267,6 +318,13 @@ class Crawler:
             if url in self._visited:
                 continue
             if depth > self._settings.max_depth:
+                continue
+            if _is_download_url(url):
+                # Skip silently: these URLs trigger a Playwright download
+                # event that surfaces as a noisy ``WARNING ... Download is
+                # starting`` for every PDF/ZIP/etc. linked from the target.
+                logger.debug("Skipping download URL: {url}", url=url)
+                self._visited.add(url)
                 continue
 
             self._visited.add(url)
@@ -281,6 +339,25 @@ class Crawler:
                 if link not in self._visited and link not in in_queue:
                     in_queue.add(link)
                     queue.append((link, depth + 1))
+
+        # Decide why we stopped.  Three buckets:
+        #   * frontier_exhausted — the queue ran dry (target fully discovered
+        #     within the configured limits).  Raising max_pages won't help.
+        #   * max_pages_reached — we hit the page cap and there were still
+        #     URLs to visit.  Raising max_pages would discover more.
+        #   * max_depth_reached — only entries deeper than max_depth remain.
+        #     Raising max_depth (not max_pages) would discover more.
+        if len(crawled) >= self._settings.max_pages and queue:
+            hit_max_pages = True
+
+        unvisited = [(u, d) for (u, d) in queue if u not in self._visited]
+        if hit_max_pages:
+            self._crawl_stats.crawl_limit_reason = "max_pages_reached"
+        elif unvisited and all(d > self._settings.max_depth for _, d in unvisited):
+            self._crawl_stats.crawl_limit_reason = "max_depth_reached"
+        else:
+            self._crawl_stats.crawl_limit_reason = "frontier_exhausted"
+        self._crawl_stats.queued_unvisited = len(unvisited)
 
         return crawled
 
@@ -332,7 +409,20 @@ class Crawler:
             )
 
         except Exception as exc:
-            logger.warning("Could not crawl {url}: {err}", url=url, err=exc)
+            # ``Page.goto: Download is starting`` is benign — we already
+            # filter known download extensions before the goto, but some
+            # apps (DVWA's docs/, config.inc.php.dist) trigger downloads
+            # via Content-Disposition without a recognisable extension.
+            # Don't pollute the WARN tier for those.
+            err_msg = str(exc)
+            if "Download is starting" in err_msg:
+                logger.debug(
+                    "Skipping {url} (server returned a download): {err}",
+                    url=url,
+                    err=err_msg,
+                )
+            else:
+                logger.warning("Could not crawl {url}: {err}", url=url, err=exc)
             return None
         finally:
             if page is not None:
