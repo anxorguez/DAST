@@ -28,10 +28,26 @@ tests/
   unit/           # Tests unitarios pytest (sin dependencias externas)
   integration/    # Tests de integración pytest (requieren DVWA activo)
 reports/
-  docs/
+  outputs/        # Salidas de los escaneos (no versionadas)
+    <scan_name>/
+      report.json
+      report.html
+      findings.db
+      scan.log
+    debug/        # Escaneos abortados — solo el scan.log se preserva
+      <failed_scan_name>/scan.log
+  docs/           # Documentación del TFM y prompts (versionados)
     TFM_completo.docx   # Documentación del proyecto (DEBE mantenerse actualizada)
     TFM_plantilla.docx  # Plantilla de estilos de la documentación
+    prompts/            # Prompts en markdown que originaron cambios
 ```
+
+**Reglas de salida**:
+- `reports/` solo contiene `outputs/` y `docs/`. Nada debe escribirse directamente bajo `reports/`.
+- Cada escaneo escribe a `reports/outputs/<scan_name>/`.
+- Si el proceso Python termina con exit code distinto de 0 o sin generar
+  `report.json`, su `scan.log` se mueve a `reports/outputs/debug/<scan_name>/`
+  y el directorio original se limpia.
 
 ---
 
@@ -75,7 +91,7 @@ Cuando se cree o modifique una funcionalidad:
 
 1. `docker compose up -d dvwa db && docker compose build dast-app`
 2. `docker compose run --rm dast-app --url http://dvwa --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 --depth 3 --max-pages 100 --max-payloads-per-vector 50 --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect --request-timeout 30`
-3. Revisar la salida en consola y los archivos en `reports/`
+3. Revisar la salida en consola y los archivos en `reports/outputs/<scan_name>/`
 4. No dar la tarea por terminada hasta que la salida sea la esperada
 
 ### 4. Registro explícito de archivos modificados
@@ -185,10 +201,23 @@ Cobertura / alcance:
 - `--max-payloads-per-vector` (env `MAX_PAYLOADS_PER_VECTOR`, default `50`) — palanca dominante de coste
 - `--payload-types` (env `PAYLOAD_TYPES`, default CSV completo) — clases de scanner activas
 - `--request-timeout` (env `REQUEST_TIMEOUT`, default `30`) — timeout HTTP por petición
+- `--scanner-vector-timeout` (env `SCANNER_VECTOR_TIMEOUT_SECONDS`, default `120`) — tope de
+  reloj por (vector × scanner). Bajarlo deja el escaneo avanzar más rápido
+  ante endpoints atascados; subirlo da margen a payloads time-based
+  (SLEEP/BENCHMARK) para confirmarse.
 
 Cada `report.html`/`report.json` incluye un bloque "Effective Configuration"
 con el dump completo de los Settings usados, para que el analista pueda
 auditar la combinación efectiva.
+
+`report.json` también expone `summary.scanner_health` con
+`vector_timeouts`, `early_aborts`, `scanners_with_zero_valid_responses`
+y `completion_rate_pct`. Cuando la tasa cae por debajo del 80% el HTML
+muestra un banner amarillo "Scan degraded" — un escaneo con 0 findings
+y `completion_rate_pct < 80` es sospechoso, no limpio. El JSON incluye
+además `crawl_stats` con `crawl_limit_reason` (`max_pages_reached`,
+`max_depth_reached` o `frontier_exhausted`) y `queued_unvisited` para
+que el analista pueda decidir si subir `--max-pages` / `--depth`.
 
 ---
 

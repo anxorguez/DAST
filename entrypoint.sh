@@ -132,7 +132,7 @@ fi
 # reports/debug/<id>/ (aborted scan). Doing the mkdir up-front would create
 # empty directories on commands like --help or argument-validation failures.
 # ---------------------------------------------------------------------------
-OUTPUT_DIR_BASE="${OUTPUT_DIR:-/app/reports}"
+OUTPUT_DIR_BASE="${OUTPUT_DIR:-/app/reports/outputs}"
 
 if [ -z "${SCAN_NAME:-}" ]; then
     _next_is_output=0

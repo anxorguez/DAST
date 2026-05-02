@@ -28,12 +28,20 @@ class Settings(BaseSettings):
 
     # --- Output -------------------------------------------------------
     # ``output_dir`` is the base directory under which scan folders are
-    # created (the *root* of ``reports/``).  ``scan_name`` is the name (or
-    # path) of the per-scan subdirectory; if ``None``, a timestamp+random
-    # ID is generated at runtime.  Splitting the two concerns means that
-    # ``--output`` can carry the *name* the user wants while the base stays
-    # configurable via ``--output-base`` / ``OUTPUT_DIR``.
-    output_dir: str = "/app/reports"
+    # created.  Two subtrees live below it:
+    #   * ``<output_dir>/<scan_name>/`` — successful scans.
+    #   * ``<output_dir>/debug/<scan_name>/`` — aborted/failed scans (only
+    #     ``scan.log`` is preserved so the failure can be diagnosed).
+    # ``scan_name`` is the name (or path) of the per-scan subdirectory; if
+    # ``None``, a timestamp+random ID is generated at runtime.  Splitting
+    # the two concerns means that ``--output`` can carry the *name* the
+    # user wants while the base stays configurable via ``--output-base`` /
+    # ``OUTPUT_DIR``.
+    #
+    # Default base sits at ``/app/reports/outputs`` (and ``./reports/outputs``
+    # in development) so that ``reports/`` itself contains *only*
+    # ``outputs/`` and ``docs/``.
+    output_dir: str = "/app/reports/outputs"
     scan_name: str | None = None
     log_level: str = "INFO"
 

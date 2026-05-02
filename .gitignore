@@ -31,9 +31,10 @@ coverage.xml
 # Linting
 .ruff_cache/
 
-# DAST output
-reports/
-!reports/.gitkeep
+# DAST output — only ``reports/outputs/`` is generated and ignored;
+# ``reports/docs/`` (TFM documentation, prompts) stays versioned.
+reports/outputs/**
+!reports/outputs/.gitkeep
 
 # Databases and logs
 *.db

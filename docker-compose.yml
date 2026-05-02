@@ -18,7 +18,7 @@ services:
     # explicit because they are mandatory or container-specific.
     environment:
       - TARGET_URL=${TARGET_URL:-http://dvwa}
-      - OUTPUT_DIR=/app/reports
+      - OUTPUT_DIR=/app/reports/outputs
       # Tuning knobs — host-controlled overrides (CLI flags also win over these)
       - LOG_LEVEL
       - MAX_DEPTH
