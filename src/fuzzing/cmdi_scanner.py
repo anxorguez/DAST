@@ -18,33 +18,67 @@ from .base_scanner import BaseScanner, _format_exc
 # ---------------------------------------------------------------------------
 # Detection signatures — command output patterns
 # ---------------------------------------------------------------------------
+#
+# Patterns are matched against the full response body with IGNORECASE and
+# MULTILINE.  MULTILINE is required because DVWA-style targets wrap output in
+# a ``<pre>...</pre>`` block, so the start-of-line anchor ``^`` must match
+# inside the pre block, not only at byte 0 of the document.
+#
+# When extending the lists, prefer signatures with embedded structure
+# (digits, colons, parentheses, dotted-quad addresses) over plain words —
+# those resist false positives from menu items / nav links that happen to
+# share a vocabulary with shell command output.
 
 _UNIX_OUTPUT_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(p, re.IGNORECASE)
+    re.compile(p, re.IGNORECASE | re.MULTILINE)
     for p in [
+        # id / whoami style
         r"uid=\d+\(",  # id output: uid=0(root)
         r"gid=\d+\(",  # id output: gid=0(root)
-        r"root:x:\d+:\d+:",  # /etc/passwd line
-        r"/bin/(sh|bash|dash|zsh)",
-        r"/usr/bin/",
+        r"groups=\d+\(",  # id output: groups=33(www-data)
+        # /etc/passwd / /etc/shadow leakage
+        r"^(?:root|daemon|bin|sys|nobody):x:\d+:\d+:",  # /etc/passwd line
         r"/etc/passwd",
         r"/etc/shadow",
-        r"command not found",
-        r"permission denied",
-        r"no such file or directory",
-        r"sh: \d+:",
+        # System paths and shells
+        r"/bin/(sh|bash|dash|zsh)",
+        r"/usr/(?:s?bin|local)/",
+        # ls -l / ls -la
+        r"^total\s+\d+\s*$",  # ls -l header
+        r"^[\-dlcbps][rwxsStT-]{9}\s+\d+\s+\S+\s+\S+\s+\d+",  # ls -l permission line
+        # Network info: ifconfig / ip a
+        r"\binet\s+(?:addr:)?\d{1,3}(?:\.\d{1,3}){3}",
+        r"\bHWaddr\s+(?:[0-9a-f]{2}:){5}[0-9a-f]{2}",
+        r"\bether\s+(?:[0-9a-f]{2}:){5}[0-9a-f]{2}",
+        # uname / hostnamectl
+        r"\bLinux\s+\S+\s+\d+\.\d+",  # uname -a head
+        r"\bGNU/Linux\b",
+        r"\bDarwin\s+\S+\s+\d+\.\d+",
+        # ping output (when the original ping completes alongside an extra
+        # command, the response still contains canonical ping framing)
+        r"\bbytes from\s+\d{1,3}(?:\.\d{1,3}){3}",
+        r"\bicmp_seq=\d+",
+        # Shell error noise — exploit succeeded but the appended cmd misfired
+        r"\bcommand not found\b",
+        r"\bpermission denied\b",
+        r"\bno such file or directory\b",
+        r"^sh:\s+\d+:",  # bash error prefix
         r"\$\s*$",  # Shell prompt artifact
+        # Common service users surfaced by whoami in web contexts
+        r"^(?:www-data|apache|nginx|httpd|nobody|tomcat)\s*$",
     ]
 ]
 
 _WINDOWS_OUTPUT_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(p, re.IGNORECASE)
+    re.compile(p, re.IGNORECASE | re.MULTILINE)
     for p in [
         r"volume in drive [a-z] (has no label|is)",
         r"volume serial number",
         r"directory of [a-z]:\\",
         r"windows ip configuration",
-        r"ipconfig",
+        r"ipv?[46]?\s*address[\.\s]*:\s*\d{1,3}(?:\.\d{1,3}){3}",
+        r"subnet mask[\.\s]*:\s*\d{1,3}(?:\.\d{1,3}){3}",
+        r"physical address[\.\s]*:\s*(?:[0-9a-f]{2}-){5}[0-9a-f]{2}",
         r"nt authority\\system",
         r"microsoft windows \[version",
         r"c:\\windows\\system32",

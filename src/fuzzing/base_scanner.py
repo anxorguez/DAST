@@ -102,6 +102,14 @@ class BaseScanner(ABC):
         # against a stuck endpoint.  See ``_send`` and the abort check below.
         self._payload_net_error_tally: int = 0
         self._payload_response_tally: int = 0
+        # Findings accumulated during the current scan() call.  Exposed so
+        # the Fuzzer can recover partial results when the per-vector wall
+        # clock cancels scan() mid-flight; without this they would be lost
+        # along with the cancelled gather().
+        self._partial_findings: list[RawFinding] = []
+        # Health flags consumed by the Fuzzer to populate scanner_health
+        # in the final report.  See ``ScanHealth``.
+        self._aborted_early: bool = False
 
     # -------------------------------------------------------------------
     # Public interface
@@ -143,11 +151,16 @@ class BaseScanner(ABC):
         # Reset payload-only counters for this scan call.
         self._payload_net_error_tally = 0
         self._payload_response_tally = 0
+        # Reset partial-findings buffer.  Stored on the instance so
+        # cancellation (per-vector timeout in the Fuzzer) can still recover
+        # whatever was confirmed before the cancel.
+        self._partial_findings = []
+        self._aborted_early = False
 
         max_concurrent = max(1, self._settings.concurrent_payloads)
         payload_sem = asyncio.Semaphore(max_concurrent)
 
-        findings: list[RawFinding] = []
+        findings = self._partial_findings
         findings_lock = asyncio.Lock()
 
         abort = asyncio.Event()
@@ -197,11 +210,40 @@ class BaseScanner(ABC):
                     e=self._payload_net_error_tally,
                     rem=len(payloads) - payloads_attempted,
                 )
+                self._aborted_early = True
                 abort.set()
 
         tasks = [asyncio.create_task(_scan_one(p)) for p in payloads]
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.gather(*tasks)
+        except asyncio.CancelledError:
+            # The per-vector timeout in Fuzzer cancelled us.  Make sure the
+            # in-flight tasks settle before returning so ``_partial_findings``
+            # is fully consistent — otherwise a task mid-extend could leave
+            # the list racy or the response tally off.  Then re-raise so the
+            # caller sees the cancellation; the Fuzzer reads
+            # ``self._partial_findings`` from its except handler.
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            raise
         return findings
+
+    @property
+    def partial_findings(self) -> list[RawFinding]:
+        """Findings accumulated during the most recent (or in-flight) scan.
+
+        Read by :class:`~src.fuzzing.fuzzer.Fuzzer` after a per-vector timeout
+        cancels :meth:`scan` so confirmed evidence already collected is not
+        lost together with the cancelled task.
+        """
+        return self._partial_findings
+
+    @property
+    def aborted_early(self) -> bool:
+        """True if scan() hit the 0-valid-responses early-abort heuristic."""
+        return self._aborted_early
 
     # -------------------------------------------------------------------
     # Abstract method for subclasses

@@ -62,6 +62,57 @@ async def test_per_vector_timeout_aborts_stuck_scanner() -> None:
 
 
 @pytest.mark.asyncio
+async def test_per_vector_timeout_preserves_partial_findings() -> None:
+    """Findings confirmed before the timeout must NOT be discarded.
+
+    Regression for the cmdi 0-recall bug: error-based payloads matched
+    ``uid=33(www-data)`` against DVWA repeatedly, but the scanner then ran
+    into the serialised time-based payloads (``; sleep 5``) which consumed
+    the whole 120 s budget.  ``asyncio.wait_for`` cancelled the gather and
+    every confirmed finding was lost together with the cancelled task —
+    the report ended up with zero cmdi findings despite nine consecutive
+    pattern matches in the scan.log.
+    """
+    from src.analysis.models import Confidence, RawFinding
+    from src.fuzzing.xss_scanner import XSSScanner
+    from src.vectors.models import VulnType
+
+    settings = Settings(
+        target_url="http://localhost",
+        output_dir="/tmp/dast",
+        payload_types="xss",
+        max_payloads_per_vector=5,
+        scanner_vector_timeout_seconds=1,
+    )
+
+    vector = _make_vector()
+    pre_timeout_finding = RawFinding(
+        vector=vector,
+        vuln_type=VulnType.XSS,
+        payload="<early>",
+        response_snippet="confirmed before timeout",
+        confidence=Confidence.CONFIRMED,
+        evidence="early hit",
+        response_time_ms=12,
+    )
+
+    async def _emit_then_hang(self: XSSScanner, *_args: object, **_kwargs: object) -> list[object]:
+        # Simulate the real scanner: confirm a finding, push it to the
+        # partial-findings buffer (as the production code path does inside
+        # the gather lock), then stall on the next payload until cancelled.
+        self._partial_findings = [pre_timeout_finding]
+        await asyncio.sleep(60)
+        return []
+
+    fuzzer = Fuzzer(settings)
+    with patch("src.fuzzing.xss_scanner.XSSScanner.scan", new=_emit_then_hang):
+        with patch.object(fuzzer._loader, "load", return_value=["<script>x</script>"]):
+            findings = await fuzzer.run([vector])
+
+    assert findings == [pre_timeout_finding]
+
+
+@pytest.mark.asyncio
 async def test_scanner_within_timeout_completes_normally() -> None:
     """A fast scanner must run to completion, with no spurious cancellation."""
     settings = Settings(

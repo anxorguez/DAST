@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from src.analysis.models import RawFinding
+from src.analysis.models import RawFinding, ScanHealth
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
 from src.core.rate_limiter import GlobalRateLimiter
@@ -58,6 +58,12 @@ class Fuzzer:
         # Public attribute: XSS payloads injected into the target during fuzzing.
         self.injected_xss_payloads: list[str] = []
         self._xss_lock = asyncio.Lock()
+        # Run-quality counters surfaced as ``summary.scanner_health`` in the
+        # final report.  The fuzzer counts a (vector × scanner) pair once
+        # for each outcome — a clean run, a per-vector timeout, an
+        # early-abort because every payload returned a network error.
+        self.health: ScanHealth = ScanHealth()
+        self._health_lock = asyncio.Lock()
 
     async def run(self, vectors: list[AttackVector]) -> list[RawFinding]:
         """Fuzz all *vectors* concurrently and return confirmed raw findings.
@@ -123,22 +129,43 @@ class Fuzzer:
                 # in BaseScanner handles the common case but doesn't help if
                 # individual requests hang for tens of seconds each.
                 timeout_s = max(1, self._settings.scanner_vector_timeout_seconds)
+                vector_timed_out = False
                 try:
                     vt_findings = await asyncio.wait_for(
                         scanner.scan(vector, payloads),
                         timeout=timeout_s,
                     )
                 except TimeoutError:
+                    vector_timed_out = True
+                    # ``wait_for`` cancelled scan() mid-flight.  Recover
+                    # whatever the scanner had already confirmed before the
+                    # cancel — without this the late time-based payloads
+                    # could burn the entire budget and discard real
+                    # error-based hits collected earlier in the same scan.
+                    vt_findings = list(scanner.partial_findings)
                     logger.warning(
                         "Scanner {vt} timed out after {t}s on {url} [{field}]; "
-                        "skipping remaining payloads for this scanner",
+                        "skipping remaining payloads for this scanner "
+                        "(kept {kept} partial finding(s))",
                         vt=vuln_type.value,
                         t=timeout_s,
                         url=vector.target_url,
                         field=vector.field_name,
+                        kept=len(vt_findings),
                     )
-                    vt_findings = []
                 findings.extend(vt_findings)
+
+                # Health bookkeeping: count this (vector × scanner) attempt
+                # exactly once for the appropriate bucket so the analyst
+                # can read `summary.scanner_health` in the report and tell
+                # a quiet scan from a degraded one.
+                async with self._health_lock:
+                    self.health.vectors_total += 1
+                    if vector_timed_out:
+                        self.health.vector_timeouts += 1
+                    elif scanner.aborted_early:
+                        self.health.early_aborts += 1
+                        self.health.scanners_with_zero_valid_responses += 1
 
                 if vt_findings:
                     logger.info(

@@ -110,3 +110,64 @@ async def test_pipeline_finds_vulns_in_dvwa(dvwa_settings: Settings, tmp_path: P
     assert (scan_dir / "report.json").exists()
     assert (scan_dir / "report.html").exists()
     assert (scan_dir / "findings.db").exists()
+
+
+@pytest.fixture()
+def dvwa_cmdi_settings(tmp_path: Path) -> Settings:
+    """Narrow scan profile that exercises only the cmdi scanner against DVWA.
+
+    Used to lock in the cmdi 0-recall regression: ``/vulnerabilities/exec/``
+    is trivially exploitable on security=low and must produce at least one
+    confirmed finding.
+    """
+    _wait_for_dvwa_login()
+    return Settings(
+        target_url="http://localhost:8080",
+        output_dir=str(tmp_path),
+        log_level="INFO",
+        max_depth=2,
+        max_pages=30,
+        max_payloads_per_vector=20,
+        payload_types="cmdi",
+        request_timeout=30,
+        auth_enabled=True,
+        auth_url="http://localhost:8080/login.php",
+        auth_username="admin",
+        auth_password="password",
+        auth_username_field="username",
+        auth_password_field="password",
+        auth_success_url="http://localhost:8080/index.php",
+        dvwa_security_level="low",
+        dvwa_username="admin",
+        dvwa_password="password",
+    )
+
+
+@pytest.mark.asyncio
+async def test_cmdi_scanner_detects_dvwa_exec(dvwa_cmdi_settings: Settings, tmp_path: Path) -> None:
+    """The cmdi scanner must produce ≥1 finding on DVWA's /vulnerabilities/exec/.
+
+    Regression for the 0-recall bug analysed across the 10-scan experiment:
+    the scanner detected ``uid=33(www-data)`` repeatedly but the per-vector
+    timeout discarded the findings, and the pattern set missed common
+    output (whoami / ls / ifconfig / uname).  After the partial-findings
+    recovery (Fuzzer) and pattern broadening (CMDiScanner), this scan must
+    yield at least one cmdi finding pointing at /vulnerabilities/exec/.
+    """
+    scan_dir = tmp_path / "scan"
+    scan_dir.mkdir()
+
+    pipeline = Pipeline(settings=dvwa_cmdi_settings, scan_dir=scan_dir)
+    report = await pipeline.run()
+
+    assert report is not None
+    cmdi_findings = [f for f in report.findings if f.raw.vuln_type.value == "cmdi"]
+    assert len(cmdi_findings) >= 1, (
+        f"Expected ≥1 cmdi finding on /vulnerabilities/exec/. "
+        f"Got: {[(f.raw.vuln_type.value, f.raw.vector.target_url) for f in report.findings]}"
+    )
+    exec_findings = [f for f in cmdi_findings if "/vulnerabilities/exec" in f.raw.vector.target_url]
+    assert len(exec_findings) >= 1, (
+        f"Expected the cmdi finding(s) to land on /vulnerabilities/exec/. "
+        f"Got URLs: {[f.raw.vector.target_url for f in cmdi_findings]}"
+    )

