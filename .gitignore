@@ -33,7 +33,7 @@ coverage.xml
 
 # DAST output — only ``reports/outputs/`` is generated and ignored;
 # ``reports/docs/`` (TFM documentation, prompts) stays versioned.
-reports/outputs/**
+reports/**
 !reports/outputs/.gitkeep
 
 # Databases and logs
