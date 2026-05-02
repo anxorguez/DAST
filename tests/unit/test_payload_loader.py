@@ -65,3 +65,34 @@ class TestPayloadLoader:
         payloads = self.loader.load(VulnType.SQLI, max_count=500)
         for p in payloads:
             assert p.strip() != ""
+
+    def test_sqli_payload_order_is_cost_ascending(self) -> None:
+        """SQLi payloads must be returned cheap-first to make the per-vector
+        timeout budget meaningful: boolean → error → union → time.
+
+        Regression for the case where time-based payloads (SLEEP/BENCHMARK)
+        consumed the whole 120 s budget on /sqli/[id], leaving the real
+        UNION/error-based detections out of the report entirely.
+        """
+        all_payloads = self.loader.load(VulnType.SQLI, max_count=500)
+
+        boolean = self.loader.load_subtype(VulnType.SQLI, "blind_boolean", max_count=500)
+        error = self.loader.load_subtype(VulnType.SQLI, "error_based", max_count=500)
+        union = self.loader.load_subtype(VulnType.SQLI, "union_based", max_count=500)
+        time_ = self.loader.load_subtype(VulnType.SQLI, "time_based", max_count=500)
+
+        # Index of the *first* payload from each subtype in the merged list.
+        def first_index_of(subset: list[str]) -> int:
+            for i, p in enumerate(all_payloads):
+                if p in subset:
+                    return i
+            return len(all_payloads)
+
+        idx_boolean = first_index_of(boolean)
+        idx_error = first_index_of(error)
+        idx_union = first_index_of(union)
+        idx_time = first_index_of(time_)
+
+        assert idx_boolean < idx_time, "boolean must precede time-based"
+        assert idx_error < idx_time, "error-based must precede time-based"
+        assert idx_union < idx_time, "UNION-based must precede time-based"

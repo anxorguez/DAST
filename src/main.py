@@ -226,6 +226,19 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
     envvar="REQUEST_TIMEOUT",
     help="[Cobertura] HTTP request timeout in seconds.",
 )
+@click.option(
+    "--scanner-vector-timeout",
+    "scanner_vector_timeout",
+    default=None,
+    type=int,
+    envvar="SCANNER_VECTOR_TIMEOUT_SECONDS",
+    help=(
+        "[Cobertura] Wall-clock cap (seconds) for one scanner against one vector "
+        "before its in-flight payloads are cancelled. Lower values keep the run "
+        "moving past stuck endpoints; higher values give time-based payloads "
+        "(SLEEP/BENCHMARK) room to confirm. Default 120s."
+    ),
+)
 # --- Output / logging --------------------------------------------------------
 @click.option(
     "--output",
@@ -262,6 +275,7 @@ def main(
     max_payloads_per_vector: int,
     payload_types: str,
     request_timeout: int,
+    scanner_vector_timeout: int | None,
     output: str | None,
     output_base: str | None,
     log_level: str | None,
@@ -281,6 +295,8 @@ def main(
         "payload_types": payload_types,
         "request_timeout": request_timeout,
     }
+    if scanner_vector_timeout is not None:
+        overrides["scanner_vector_timeout_seconds"] = scanner_vector_timeout
     if output:
         overrides["scan_name"] = output
     if output_base:

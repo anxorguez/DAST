@@ -166,6 +166,44 @@ def test_move_log_to_debug_no_log_cleans_dir(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_scanner_vector_timeout_cli_flag_overrides_default() -> None:
+    """``--scanner-vector-timeout`` propagates into ``Settings``.
+
+    Lock the wiring so the per-vector wall clock is reachable from the CLI
+    without a config file edit (regression for the analysis where 120 s
+    was burned by time-based payloads on /sqli/[id]).
+    """
+    from click.testing import CliRunner
+
+    from src.main import main
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(self: object) -> object:
+        captured["scanner_vector_timeout_seconds"] = self._settings.scanner_vector_timeout_seconds  # type: ignore[attr-defined]
+        # Force exit early so the test doesn't try to spin up a real scan.
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("src.pipeline.Pipeline.run", new=_fake_run):
+        runner.invoke(
+            main,
+            [
+                "--url",
+                "http://localhost",
+                "--scanner-vector-timeout",
+                "37",
+                "--max-pages",
+                "1",
+                "--depth",
+                "0",
+            ],
+            catch_exceptions=False,
+        )
+
+    assert captured.get("scanner_vector_timeout_seconds") == 37
+
+
 def test_format_cli_command_round_trip() -> None:
     """The CLI string is reproducible from sys.argv via shlex.quote."""
     fake_argv = [
