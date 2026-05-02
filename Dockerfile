@@ -22,6 +22,11 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# Force Python's stdout/stderr unbuffered so the tail of long-running scans
+# is preserved when the container exits.  Pairs with the loguru file
+# handler's ``enqueue=True`` to keep `scan.log` truthful at any duration.
+ENV PYTHONUNBUFFERED=1
+
 # Install Python dependencies first (separate layer for Docker cache efficiency).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

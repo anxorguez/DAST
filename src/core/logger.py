@@ -36,14 +36,20 @@ def setup_logger(log_level: str = "INFO", log_file: Path | None = None) -> None:
     )
 
     if log_file is not None:
+        # Per-scan log file: no rotation, no compression — each scan has its
+        # own ``scan.log`` under ``reports/outputs/<scan>/`` so size-based
+        # rotation only adds failure modes (the previously rotated chunks
+        # were getting lost mid-scan during multi-hour runs, leaving the
+        # last 18 minutes of a 28-minute stealth scan absent from the file).
+        # ``enqueue=True`` routes records through a background worker that
+        # flushes after every write, so the tail of long-running scans is
+        # always on disk by the time the process exits.
         logger.add(
             str(log_file),
             format=_LOG_FORMAT,
             level=log_level.upper(),
-            rotation="50 MB",
-            compression="zip",
             encoding="utf-8",
-            enqueue=False,
+            enqueue=True,
         )
 
 
