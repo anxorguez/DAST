@@ -10,7 +10,9 @@ import pytest
 
 from src.analysis.models import (
     Confidence,
+    CrawlStats,
     RawFinding,
+    ScanHealth,
     ScanReport,
     Severity,
     ValidatedFinding,
@@ -306,3 +308,60 @@ async def test_report_with_no_findings(tmp_path: Path) -> None:
     assert json_file.exists()
     data = json.loads(json_file.read_text(encoding="utf-8"))
     assert data["findings"] == []
+
+
+@pytest.mark.asyncio
+async def test_json_includes_scanner_health(tmp_path: Path) -> None:
+    """``summary.scanner_health`` exposes timeouts/aborts/completion rate.
+
+    Locks the JSON contract so an analyst cannot mistake a degraded run
+    (saturated network, dead target) for a clean 0-finding report.
+    """
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    report.scanner_health = ScanHealth(
+        vectors_total=10,
+        vector_timeouts=2,
+        early_aborts=3,
+        scanners_with_zero_valid_responses=3,
+    )
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    data = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    health = data["summary"]["scanner_health"]
+    assert health["vectors_total"] == 10
+    assert health["vector_timeouts"] == 2
+    assert health["early_aborts"] == 3
+    assert health["scanners_with_zero_valid_responses"] == 3
+    # 5 of 10 attempts ran to completion → 50.0%.
+    assert health["completion_rate_pct"] == 50.0
+
+
+@pytest.mark.asyncio
+async def test_html_shows_degraded_banner_on_low_completion(tmp_path: Path) -> None:
+    """HTML must render the 'Scan degraded' banner when completion < 80%."""
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    report.scanner_health = ScanHealth(
+        vectors_total=20, vector_timeouts=10, early_aborts=2, scanners_with_zero_valid_responses=2
+    )
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    html = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "Scan degraded" in html
+
+
+@pytest.mark.asyncio
+async def test_json_includes_crawl_stats(tmp_path: Path) -> None:
+    """``crawl_stats`` exposes crawl_limit_reason and queued_unvisited."""
+    settings = _make_settings(tmp_path)
+    report = _make_report(tmp_path)
+    report.crawl_stats = CrawlStats(crawl_limit_reason="max_pages_reached", queued_unvisited=15)
+    generator = ReportGenerator(settings, tmp_path)
+    await generator.generate(report)
+
+    data = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
+    assert data["crawl_stats"]["crawl_limit_reason"] == "max_pages_reached"
+    assert data["crawl_stats"]["queued_unvisited"] == 15

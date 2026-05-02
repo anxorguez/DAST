@@ -114,6 +114,8 @@ class Pipeline:
             summary=self._build_summary(scored),
             config=self._settings.model_dump(exclude={"auth_password", "dvwa_password", "db_path"}),
             cli_command=self._cli_command,
+            scanner_health=fuzzer.health,
+            crawl_stats=crawler.crawl_stats,
         )
 
         generator = ReportGenerator(self._settings, self._scan_dir)

@@ -269,6 +269,9 @@ class ReportGenerator:
             started_time=_fmt_time(report.started_at),
             finished_date=_fmt_date(report.finished_at),
             finished_time=_fmt_time(report.finished_at),
+            scanner_health=report.scanner_health,
+            crawl_stats=report.crawl_stats,
+            scan_degraded=report.scanner_health.completion_rate_pct < 80.0,
         )
 
         html_path = self._scan_dir / "report.html"
@@ -305,6 +308,11 @@ def _finding_row(finding: ValidatedFinding, scan_id: str) -> tuple[object, ...]:
 
 
 def _report_to_dict(report: ScanReport) -> dict[str, object]:
+    # Build the summary block.  ``report.summary`` already contains the
+    # severity counts; we layer ``scanner_health`` on top so a JSON
+    # consumer can read both groups under ``summary``.
+    summary: dict[str, object] = dict(report.summary)
+    summary["scanner_health"] = report.scanner_health.to_dict()
     return {
         "scan_id": report.scan_id,
         "target_url": report.target_url,
@@ -315,7 +323,8 @@ def _report_to_dict(report: ScanReport) -> dict[str, object]:
         "pages_crawled": report.pages_crawled,
         "vectors_found": report.vectors_found,
         "total_findings": len(report.findings),
-        "summary": report.summary,
+        "summary": summary,
+        "crawl_stats": report.crawl_stats.to_dict(),
         "config": report.config,
         "findings": [_finding_to_dict(f) for f in report.findings],
     }

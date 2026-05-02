@@ -496,6 +496,16 @@
     <!-- Summary -->
     <section>
       <h2>Summary</h2>
+      {% if scan_degraded %}
+      <div style="margin: 12px 0; padding: 12px 16px; border-left: 4px solid #d97706;
+                  background: #fef3c7; color: #78350f; border-radius: 4px;">
+        <strong>Scan degraded.</strong>
+        Only {{ scanner_health.completion_rate_pct }}% of (vector × scanner) pairs ran to completion
+        ({{ scanner_health.vector_timeouts }} timeout(s), {{ scanner_health.early_aborts }} early abort(s)
+        across {{ scanner_health.vectors_total }} attempts). Treat the finding count as a lower bound —
+        see <code>summary.scanner_health</code> in <code>report.json</code>.
+      </div>
+      {% endif %}
       <div class="summary-grid">
         <div class="card CRITICAL">
           <div class="count">{{ report.summary.get("critical", 0) }}</div>
