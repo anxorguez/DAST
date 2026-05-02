@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from src.crawler.crawler import _is_download_url
 from src.crawler.form_extractor import extract_forms
 from src.crawler.link_extractor import extract_links
 
@@ -84,3 +85,37 @@ class TestLinkExtractor:
         for link in links:
             assert "logout" not in link.lower()
             assert "sign" not in link.lower() or "sqli" in link.lower()
+
+
+class TestDownloadUrlFilter:
+    """Crawler must skip URLs that trigger a browser download.
+
+    Regression for the WARN flood seen in every scan log:
+
+        WARNING | src.crawler.crawler | Could not crawl
+            http://dvwa/config/config.inc.php.dist: Page.goto: Download is starting
+
+    These URLs do not produce HTML for the form/link extractor and should
+    be filtered before the goto, not handled after the warning fires.
+    """
+
+    def test_pdf_filtered(self) -> None:
+        assert _is_download_url("http://dvwa/docs/DVWA_v1.3.pdf")
+
+    def test_zip_filtered(self) -> None:
+        assert _is_download_url("http://dvwa/files/archive.zip")
+
+    def test_dist_filtered(self) -> None:
+        assert _is_download_url("http://dvwa/config/config.inc.php.dist")
+
+    def test_html_not_filtered(self) -> None:
+        assert not _is_download_url("http://dvwa/index.php")
+        assert not _is_download_url("http://dvwa/vulnerabilities/sqli/")
+
+    def test_query_string_does_not_confuse_filter(self) -> None:
+        # Path is .php, query happens to mention .pdf — must not be filtered.
+        assert not _is_download_url("http://dvwa/page.php?ref=guide.pdf")
+
+    def test_case_insensitive(self) -> None:
+        assert _is_download_url("http://dvwa/REPORT.PDF")
+        assert _is_download_url("http://dvwa/report.PDF")
