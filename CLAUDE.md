@@ -231,23 +231,24 @@ que el analista pueda decidir si subir `--max-pages` / `--depth`.
 
 ## Prototipos de Commits Después de Cada Tarea
 
-Al terminar cualquier tarea, muestra un bloque de commits y de git adds listo para copiar en el chat (NO lo ejecutes por bash). Formato:
+Al terminar cualquier tarea, muestra un bloque de commits y de git adds listo para copiar en el chat (NO lo ejecutes por bash). Mira primero el .gitignore, y para todos los archivos modificados que se encuentre en él, no los incluyas en los prototipos de commits. Formato:
 
 ---
 
 **git adds y commits para esta tarea:**
 
-git add 1 —
+Grupo 1 git
 - `git add archivos`
-
-Commit 1 — `<tipo>(<scope>): <descripción>`
 - `git commit -m "<tipo>(<scope>): <descripción>"
 
-git add 2 — 
+Grupo 2 git
 - `git add archivos`
-
-Commit 2 — `<tipo>(<scope>): <descripción>`
 - `git commit -m "<tipo>(<scope>): <descripción>"
+
+Grupo 3 git
+- `git add archivos`
+- `git commit -m "<tipo>(<scope>): <descripción>"
+
 
 
 ---
