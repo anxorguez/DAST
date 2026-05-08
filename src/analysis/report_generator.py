@@ -34,6 +34,7 @@ _CONFIG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "max_pages",
             "max_payloads_per_vector",
             "payload_types",
+            "obfuscation",
             "request_timeout",
             "concurrent_pages",
             "scanner_http_retries",

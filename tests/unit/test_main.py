@@ -204,6 +204,61 @@ def test_scanner_vector_timeout_cli_flag_overrides_default() -> None:
     assert captured.get("scanner_vector_timeout_seconds") == 37
 
 
+def test_obfuscation_cli_flag_propagates_to_settings() -> None:
+    """``--obfuscation url,base64`` propagates into ``Settings.obfuscation``."""
+    from click.testing import CliRunner
+
+    from src.main import main
+
+    captured: dict[str, object] = {}
+
+    def _fake_run(self: object) -> object:
+        captured["obfuscation"] = self._settings.obfuscation  # type: ignore[attr-defined]
+        raise SystemExit(0)
+
+    runner = CliRunner()
+    with patch("src.pipeline.Pipeline.run", new=_fake_run):
+        runner.invoke(
+            main,
+            [
+                "--url",
+                "http://localhost",
+                "--obfuscation",
+                "url,base64",
+                "--max-pages",
+                "1",
+                "--depth",
+                "0",
+            ],
+            catch_exceptions=False,
+        )
+
+    assert captured.get("obfuscation") == "url,base64"
+
+
+def test_obfuscation_invalid_value_exits_with_error() -> None:
+    """``--obfuscation noexiste`` must abort before touching the network.
+
+    The ValidationError from Pydantic propagates as an unhandled exception
+    through Click's runner (no output is printed — the error is in
+    result.exception); the only observable contract is non-zero exit.
+    """
+    from click.testing import CliRunner
+
+    from src.main import main
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["--url", "http://localhost", "--obfuscation", "noexiste"],
+    )
+
+    assert result.exit_code != 0
+    # The exception message must identify the bad encoding.
+    assert result.exception is not None
+    assert "noexiste" in str(result.exception)
+
+
 def test_format_cli_command_round_trip() -> None:
     """The CLI string is reproducible from sys.argv via shlex.quote."""
     fake_argv = [

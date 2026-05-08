@@ -218,6 +218,20 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
     ),
 )
 @click.option(
+    "--obfuscation",
+    "obfuscation",
+    default="none",
+    show_default=True,
+    type=str,
+    envvar="OBFUSCATION",
+    help=(
+        "[Cobertura] CSV list of payload obfuscation encodings to apply. "
+        "Valid values: none, url, double_url, base64. Each scanner declares "
+        "which encodings make sense for its vuln class; the effective set is "
+        "the intersection. Multiplies per-vector cost by len(intersection)."
+    ),
+)
+@click.option(
     "--request-timeout",
     "request_timeout",
     default=30,
@@ -274,6 +288,7 @@ def main(
     max_pages: int,
     max_payloads_per_vector: int,
     payload_types: str,
+    obfuscation: str,
     request_timeout: int,
     scanner_vector_timeout: int | None,
     output: str | None,
@@ -293,6 +308,7 @@ def main(
         "max_pages": max_pages,
         "max_payloads_per_vector": max_payloads_per_vector,
         "payload_types": payload_types,
+        "obfuscation": obfuscation,
         "request_timeout": request_timeout,
     }
     if scanner_vector_timeout is not None:
@@ -334,7 +350,7 @@ def main(
     logger.info(
         "DAST Framework starting | url={u} | cv={cv} | cp={cp} | rps={rps} | "
         "depth={d} | max_pages={mp} | max_payloads_per_vector={mppv} | "
-        "payload_types={pt} | request_timeout={rt} | scan_dir={s}",
+        "payload_types={pt} | obf={obf} | request_timeout={rt} | scan_dir={s}",
         u=url,
         cv=concurrent_vectors,
         cp=concurrent_payloads,
@@ -343,6 +359,7 @@ def main(
         mp=max_pages,
         mppv=max_payloads_per_vector,
         pt=payload_types,
+        obf=obfuscation,
         rt=request_timeout,
         s=str(scan_dir),
     )

@@ -62,6 +62,13 @@ class Settings(BaseSettings):
 
     # --- Fuzzing ------------------------------------------------------
     payload_types: str = "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect"
+    # CSV of payload obfuscation encodings to apply.  Each scanner declares which
+    # encodings make sense for its vuln class via SUPPORTED_ENCODINGS; the
+    # effective list per scanner is the intersection of this setting and that
+    # tuple.  An empty intersection falls back to ``"none"`` so the scanner still
+    # runs.  Valid values: none, url, double_url, base64.  See
+    # src/fuzzing/obfuscators.py for the full catalogue.
+    obfuscation: str = "none"
     max_payloads_per_vector: int = 50
     concurrent_vectors: int = 5  # Max vectors scanned in parallel
     concurrent_payloads: int = 10  # Max payloads tested in parallel per scanner
@@ -94,11 +101,32 @@ class Settings(BaseSettings):
             raise ValueError(f"log_level must be one of {valid}, got '{v}'")
         return s
 
+    @field_validator("obfuscation", mode="before")
+    @classmethod
+    def _validate_obfuscation(cls, v: object) -> str:
+        from src.fuzzing.obfuscators import ALL_ENCODINGS
+
+        s = str(v).lower()
+        tokens = [t.strip() for t in s.split(",") if t.strip()]
+        if not tokens:
+            return "none"
+        bad = [t for t in tokens if t not in ALL_ENCODINGS]
+        if bad:
+            raise ValueError(
+                f"obfuscation contains unknown encoding(s) {bad}; valid: {sorted(ALL_ENCODINGS)}"
+            )
+        return ",".join(tokens)
+
     # -----------------------------------------------------------------
     @property
     def payload_types_list(self) -> list[str]:
         """Return the payload_types field as a list of lowercase strings."""
         return [t.strip().lower() for t in self.payload_types.split(",") if t.strip()]
+
+    @property
+    def obfuscation_list(self) -> list[str]:
+        """Return the obfuscation field as a list of lowercase strings."""
+        return [t.strip().lower() for t in self.obfuscation.split(",") if t.strip()]
 
 
 # ---------------------------------------------------------------------------
