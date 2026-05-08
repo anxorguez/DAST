@@ -46,6 +46,7 @@ class XSSScanner(BaseScanner):
     """Detects reflected and DOM-based XSS by analysing HTTP response content."""
 
     VULN_TYPE = VulnType.XSS
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
 
     def __init__(
         self,
@@ -58,15 +59,17 @@ class XSSScanner(BaseScanner):
         # A value of None means the baseline fetch failed and Strategy 2 must be skipped.
         self._baseline_cache: dict[str, str | None] = {}
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Send *payload*, check if it appears unescaped in the response."""
         try:
             baseline_body = await self._get_baseline(vector)
-            response, elapsed = await self._send(vector, payload)
+            response, elapsed = await self._send(vector, payload, encoding=encoding)
             body = response.text
 
             finding = self._check_reflection(
-                vector, payload, body, baseline_body, response, elapsed
+                vector, payload, body, baseline_body, response, elapsed, encoding
             )
             if finding:
                 logger.debug(
@@ -120,6 +123,7 @@ class XSSScanner(BaseScanner):
         baseline_body: str | None,
         response: httpx.Response,
         elapsed: int,
+        encoding: str = "none",
     ) -> RawFinding | None:
         # Strategy 1: exact payload string appears verbatim in response body.
         if payload in body:
@@ -131,7 +135,9 @@ class XSSScanner(BaseScanner):
                     f"XSS payload reflected verbatim in HTTP {response.status_code} "
                     f"response (unescaped)"
                 )
-                return self._make_finding(vector, payload, response, elapsed, confidence, evidence)
+                return self._make_finding(
+                    vector, payload, response, elapsed, confidence, evidence, encoding
+                )
 
         # Strategy 2: discriminating XSS shapes from the payload appear in the
         # response more often than in a benign baseline. Without a baseline we
@@ -159,6 +165,7 @@ class XSSScanner(BaseScanner):
                     elapsed,
                     Confidence.LIKELY,
                     evidence,
+                    encoding,
                 )
 
         return None

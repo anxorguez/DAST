@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+from urllib.parse import quote as _q
 from urllib.parse import urlparse
 
 import httpx
@@ -13,6 +14,7 @@ from src.analysis.models import Confidence, RawFinding
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
 from src.core.rate_limiter import GlobalRateLimiter
+from src.fuzzing import obfuscators
 from src.vectors.models import AttackVector, VulnType
 
 from .base_scanner import BaseScanner, _format_exc
@@ -83,6 +85,7 @@ class OpenRedirectScanner(BaseScanner):
     """
 
     VULN_TYPE = VulnType.OPEN_REDIRECT
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
 
     def __init__(
         self,
@@ -92,11 +95,13 @@ class OpenRedirectScanner(BaseScanner):
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Inject *payload* and look for redirect to the probe domain."""
         try:
             # We need the raw 3xx response, not the followed redirect.
-            response, elapsed = await self._send_no_follow(vector, payload)
+            response, elapsed = await self._send_no_follow(vector, payload, encoding)
             status = response.status_code
             body = response.text
 
@@ -121,6 +126,7 @@ class OpenRedirectScanner(BaseScanner):
                         elapsed,
                         Confidence.CONFIRMED,
                         evidence,
+                        encoding,
                     )
 
             # Strategy 2: Meta-refresh redirect in the HTML body.
@@ -139,6 +145,7 @@ class OpenRedirectScanner(BaseScanner):
                         elapsed,
                         Confidence.LIKELY,
                         evidence,
+                        encoding,
                     )
 
             # Strategy 3: JavaScript location assignment.
@@ -158,6 +165,7 @@ class OpenRedirectScanner(BaseScanner):
                             elapsed,
                             Confidence.LIKELY,
                             evidence,
+                            encoding,
                         )
 
         except Exception as exc:
@@ -175,7 +183,7 @@ class OpenRedirectScanner(BaseScanner):
     # -------------------------------------------------------------------
 
     async def _send_no_follow(
-        self, vector: AttackVector, payload: str
+        self, vector: AttackVector, payload: str, encoding: str = "none"
     ) -> tuple[httpx.Response, int]:
         """Send request without following redirects to capture the 3xx response.
 
@@ -186,19 +194,43 @@ class OpenRedirectScanner(BaseScanner):
         per-request and update the BaseScanner counters inline so the
         early-abort heuristic doesn't fire on a stream of valid 302s
         (which would otherwise look like "0 valid HTTP responses").
+
+        Applies the same encoding logic as :meth:`BaseScanner._send`:
+        ``url``/``double_url`` require manual query-string construction to
+        avoid httpx re-encoding the already-encoded payload.
         """
-        params = {**vector.extra_params, vector.field_name: payload}
+        encoded_payload = obfuscators.apply(encoding, payload)
 
         start = time.monotonic()
         try:
-            if vector.method == "POST":
-                response = await self._http.post_no_retry(
-                    vector.target_url, data=params, follow_redirects=False
-                )
+            if encoding in (obfuscators.ENCODING_NONE, obfuscators.ENCODING_BASE64):
+                params = {**vector.extra_params, vector.field_name: encoded_payload}
+                if vector.method == "POST":
+                    response = await self._http.post_no_retry(
+                        vector.target_url, data=params, follow_redirects=False
+                    )
+                else:
+                    response = await self._http.get_no_retry(
+                        vector.target_url, params=params, follow_redirects=False
+                    )
             else:
-                response = await self._http.get_no_retry(
-                    vector.target_url, params=params, follow_redirects=False
+                extra_pairs = "&".join(
+                    f"{_q(k, safe='')}={_q(v, safe='')}" for k, v in vector.extra_params.items()
                 )
+                field_pair = f"{_q(vector.field_name, safe='')}={encoded_payload}"
+                raw_query = "&".join(p for p in (extra_pairs, field_pair) if p)
+                if vector.method == "POST":
+                    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+                    response = await self._http.post_no_retry(
+                        vector.target_url,
+                        content=raw_query.encode("ascii"),
+                        headers=headers,
+                        follow_redirects=False,
+                    )
+                else:
+                    sep = "&" if "?" in vector.target_url else "?"
+                    target = f"{vector.target_url}{sep}{raw_query}"
+                    response = await self._http.get_no_retry(target, follow_redirects=False)
         except Exception:
             self._payload_net_error_tally += 1
             raise

@@ -97,6 +97,7 @@ class CMDiScanner(BaseScanner):
     """Detects Command Injection using error-based output patterns and time-based delays."""
 
     VULN_TYPE = VulnType.CMDI
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
 
     def __init__(
         self,
@@ -106,17 +107,19 @@ class CMDiScanner(BaseScanner):
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Try one payload; return a finding if CMDi evidence is found."""
         try:
             payload_lower = payload.lower()
 
             # Time-based payloads (sleep / ping -c N / ping -n N)
             if any(kw in payload_lower for kw in ("sleep ", "ping -c", "ping -n")):
-                return await self._detect_time_based(vector, payload)
+                return await self._detect_time_based(vector, payload, encoding)
 
             # Error-based / output-based
-            return await self._detect_error_based(vector, payload)
+            return await self._detect_error_based(vector, payload, encoding)
 
         except Exception as exc:
             logger.debug(
@@ -131,8 +134,10 @@ class CMDiScanner(BaseScanner):
     # Detection strategies
     # -------------------------------------------------------------------
 
-    async def _detect_error_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
-        response, elapsed = await self._send(vector, payload)
+    async def _detect_error_based(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
+        response, elapsed = await self._send(vector, payload, encoding=encoding)
         body = response.text
 
         for pattern in _ALL_CMDI_PATTERNS:
@@ -154,10 +159,13 @@ class CMDiScanner(BaseScanner):
                     elapsed,
                     Confidence.CONFIRMED,
                     evidence,
+                    encoding,
                 )
         return None
 
-    async def _detect_time_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect_time_based(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         try:
             _, baseline_ms = await self._send_baseline(vector)
         except Exception:
@@ -165,7 +173,7 @@ class CMDiScanner(BaseScanner):
 
         t0 = time.monotonic()
         try:
-            response, _ = await self._send(vector, payload, no_retry=True)
+            response, _ = await self._send(vector, payload, no_retry=True, encoding=encoding)
         except Exception:
             return None
         elapsed_ms = int((time.monotonic() - t0) * 1000)
@@ -189,5 +197,6 @@ class CMDiScanner(BaseScanner):
                 elapsed_ms,
                 Confidence.LIKELY,
                 evidence,
+                encoding,
             )
         return None

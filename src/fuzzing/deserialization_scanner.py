@@ -98,6 +98,7 @@ class DeserializationScanner(BaseScanner):
     """
 
     VULN_TYPE = VulnType.DESERIALIZATION
+    SUPPORTED_ENCODINGS = ("none", "base64")
 
     def __init__(
         self,
@@ -107,10 +108,12 @@ class DeserializationScanner(BaseScanner):
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Send a malformed serialized payload and inspect the response."""
         try:
-            response, elapsed = await self._send(vector, payload)
+            response, elapsed = await self._send(vector, payload, encoding=encoding)
             body = response.text
 
             # Strategy 1: deserialization exception visible in response body.
@@ -134,6 +137,7 @@ class DeserializationScanner(BaseScanner):
                         elapsed,
                         Confidence.CONFIRMED,
                         evidence,
+                        encoding,
                     )
 
             # Strategy 2: HTTP 500 with a serialization-style payload is suspicious.
@@ -155,6 +159,7 @@ class DeserializationScanner(BaseScanner):
                     elapsed,
                     Confidence.LIKELY,
                     evidence,
+                    encoding,
                 )
 
         except Exception as exc:

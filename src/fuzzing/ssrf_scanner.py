@@ -63,6 +63,7 @@ class SSRFScanner(BaseScanner):
     """
 
     VULN_TYPE = VulnType.SSRF
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
 
     def __init__(
         self,
@@ -72,7 +73,9 @@ class SSRFScanner(BaseScanner):
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Inject *payload* URL and analyse the response for internal content."""
         try:
             # Baseline for size-difference comparison.
@@ -82,7 +85,7 @@ class SSRFScanner(BaseScanner):
             except Exception:
                 baseline_size = 0
 
-            response, elapsed = await self._send(vector, payload)
+            response, elapsed = await self._send(vector, payload, encoding=encoding)
             body = response.text
 
             # Strategy 1: response contains content from an internal resource.
@@ -107,6 +110,7 @@ class SSRFScanner(BaseScanner):
                         elapsed,
                         Confidence.CONFIRMED,
                         evidence,
+                        encoding,
                     )
 
             # Strategy 2: significant size difference suggests the server
@@ -131,6 +135,7 @@ class SSRFScanner(BaseScanner):
                     elapsed,
                     Confidence.LIKELY,
                     evidence,
+                    encoding,
                 )
 
         except Exception as exc:

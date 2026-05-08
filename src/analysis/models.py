@@ -59,6 +59,7 @@ class RawFinding:
     confidence: Confidence
     evidence: str  # Human-readable explanation of why this is suspicious
     response_time_ms: int = 0  # Milliseconds; key for time-based detections
+    encoding: str = "none"  # Obfuscation applied to the payload, if any
     found_at: datetime = field(default_factory=datetime.utcnow)
 
 

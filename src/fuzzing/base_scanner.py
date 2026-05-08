@@ -13,6 +13,7 @@ from src.analysis.models import Confidence, RawFinding
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
 from src.core.rate_limiter import GlobalRateLimiter
+from src.fuzzing import obfuscators
 from src.vectors.models import AttackVector, VulnType
 
 # Number of times each payload is retried to confirm a finding.
@@ -82,6 +83,12 @@ class BaseScanner(ABC):
     """
 
     VULN_TYPE: VulnType  # Must be set by every concrete subclass.
+
+    # Encodings that this scanner's detection logic can survive.  The Fuzzer
+    # computes ``settings.obfuscation_list ∩ SUPPORTED_ENCODINGS`` per scan,
+    # falling back to ``("none",)`` if the intersection is empty.  Override in
+    # subclasses; the base default is conservative.
+    SUPPORTED_ENCODINGS: tuple[str, ...] = ("none",)
 
     def __init__(
         self,
@@ -157,6 +164,8 @@ class BaseScanner(ABC):
         self._partial_findings = []
         self._aborted_early = False
 
+        effective_encodings = self._compute_effective_encodings()
+
         max_concurrent = max(1, self._settings.concurrent_payloads)
         payload_sem = asyncio.Semaphore(max_concurrent)
 
@@ -166,7 +175,10 @@ class BaseScanner(ABC):
         abort = asyncio.Event()
         payloads_attempted = 0
 
-        async def _scan_one(payload: str) -> None:
+        # Cross-product: each (payload, encoding) pair is one atomic unit of work.
+        work = [(p, enc) for p in payloads for enc in effective_encodings]
+
+        async def _scan_one(payload: str, encoding: str) -> None:
             nonlocal payloads_attempted
             if abort.is_set():
                 return
@@ -176,14 +188,14 @@ class BaseScanner(ABC):
                 async with self._time_based_lock:
                     if self._rate_limiter is not None:
                         await self._rate_limiter.acquire()
-                    hits = await self._retry_detect(vector, payload)
+                    hits = await self._retry_detect(vector, payload, encoding)
             else:
                 async with payload_sem:
                     if abort.is_set():
                         return
                     if self._rate_limiter is not None:
                         await self._rate_limiter.acquire()
-                    hits = await self._retry_detect(vector, payload)
+                    hits = await self._retry_detect(vector, payload, encoding)
 
             if hits:
                 async with findings_lock:
@@ -208,12 +220,12 @@ class BaseScanner(ABC):
                     field=vector.field_name,
                     a=payloads_attempted,
                     e=self._payload_net_error_tally,
-                    rem=len(payloads) - payloads_attempted,
+                    rem=len(work) - payloads_attempted,
                 )
                 self._aborted_early = True
                 abort.set()
 
-        tasks = [asyncio.create_task(_scan_one(p)) for p in payloads]
+        tasks = [asyncio.create_task(_scan_one(p, enc)) for p, enc in work]
         try:
             await asyncio.gather(*tasks)
         except asyncio.CancelledError:
@@ -250,7 +262,9 @@ class BaseScanner(ABC):
     # -------------------------------------------------------------------
 
     @abstractmethod
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Attempt to detect a vulnerability for one payload against one vector.
 
         Returns:
@@ -262,11 +276,31 @@ class BaseScanner(ABC):
     # Shared helpers
     # -------------------------------------------------------------------
 
-    async def _retry_detect(self, vector: AttackVector, payload: str) -> list[RawFinding]:
+    def _compute_effective_encodings(self) -> tuple[str, ...]:
+        """Return the intersection of requested and supported encodings.
+
+        Falls back to ``("none",)`` if the intersection is empty so the
+        scanner always runs at minimum with the unencoded payload.
+        """
+        requested = self._settings.obfuscation_list or ["none"]
+        effective = tuple(e for e in requested if e in self.SUPPORTED_ENCODINGS) or ("none",)
+        if set(effective) != set(requested):
+            logger.debug(
+                "{vt}: encoding intersection {eff} (requested={req}, supported={sup})",
+                vt=self.VULN_TYPE.value,
+                eff=effective,
+                req=requested,
+                sup=self.SUPPORTED_ENCODINGS,
+            )
+        return effective
+
+    async def _retry_detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> list[RawFinding]:
         """Run _detect up to RETRY_COUNT times and return hits if ≥ CONFIRM_THRESHOLD."""
         confirmed_hits: list[RawFinding] = []
         for _ in range(RETRY_COUNT):
-            hit = await self._detect(vector, payload)
+            hit = await self._detect(vector, payload, encoding)
             if hit is not None:
                 confirmed_hits.append(hit)
         if len(confirmed_hits) >= CONFIRM_THRESHOLD:
@@ -279,8 +313,16 @@ class BaseScanner(ABC):
         payload: str,
         no_retry: bool = False,
         is_baseline: bool = False,
+        encoding: str = "none",
     ) -> tuple[httpx.Response, int]:
         """Send an HTTP request with *payload* injected into *vector*.
+
+        The ``encoding`` parameter selects an optional obfuscation transform.
+        For ``none`` and ``base64`` we go through the normal httpx params/data
+        path (httpx percent-encodes the value as usual).  For ``url`` and
+        ``double_url`` we MUST bypass httpx auto-encoding and build the query
+        string / form body manually, otherwise ``url`` becomes ``double_url`` on
+        the wire and ``double_url`` becomes triple-encoded.
 
         For real payloads (``is_baseline=False``), updates
         ``_payload_response_tally`` on success and ``_payload_net_error_tally``
@@ -291,20 +333,55 @@ class BaseScanner(ABC):
         Returns:
             Tuple of (response, elapsed_milliseconds).
         """
-        params = {**vector.extra_params, vector.field_name: payload}
-
+        encoded_payload = obfuscators.apply(encoding, payload)
         start = time.monotonic()
         try:
-            if vector.method == "POST":
-                if no_retry:
-                    response = await self._http.post_no_retry(vector.target_url, data=params)
+            if encoding in (obfuscators.ENCODING_NONE, obfuscators.ENCODING_BASE64):
+                params = {**vector.extra_params, vector.field_name: encoded_payload}
+                if vector.method == "POST":
+                    if no_retry:
+                        response = await self._http.post_no_retry(vector.target_url, data=params)
+                    else:
+                        response = await self._http.post(vector.target_url, data=params)
                 else:
-                    response = await self._http.post(vector.target_url, data=params)
+                    if no_retry:
+                        response = await self._http.get_no_retry(vector.target_url, params=params)
+                    else:
+                        response = await self._http.get(vector.target_url, params=params)
             else:
-                if no_retry:
-                    response = await self._http.get_no_retry(vector.target_url, params=params)
+                # url / double_url: build the wire string manually so httpx does
+                # NOT percent-encode our already-encoded payload again.  Note the
+                # extra_params are URL-encoded normally (via quote) — only the
+                # injected field carries the obfuscated form.
+                from urllib.parse import quote as _q
+
+                extra_pairs = "&".join(
+                    f"{_q(k, safe='')}={_q(v, safe='')}" for k, v in vector.extra_params.items()
+                )
+                field_pair = f"{_q(vector.field_name, safe='')}={encoded_payload}"
+                raw_query = "&".join(p for p in (extra_pairs, field_pair) if p)
+
+                if vector.method == "POST":
+                    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+                    if no_retry:
+                        response = await self._http.post_no_retry(
+                            vector.target_url,
+                            content=raw_query.encode("ascii"),
+                            headers=headers,
+                        )
+                    else:
+                        response = await self._http.post(
+                            vector.target_url,
+                            content=raw_query.encode("ascii"),
+                            headers=headers,
+                        )
                 else:
-                    response = await self._http.get(vector.target_url, params=params)
+                    sep = "&" if "?" in vector.target_url else "?"
+                    target = f"{vector.target_url}{sep}{raw_query}"
+                    if no_retry:
+                        response = await self._http.get_no_retry(target)
+                    else:
+                        response = await self._http.get(target)
         except Exception:
             if not is_baseline:
                 self._payload_net_error_tally += 1
@@ -319,7 +396,8 @@ class BaseScanner(ABC):
         """Send a benign baseline request for comparison.
 
         Baseline requests are excluded from the abort heuristic counters; see
-        :meth:`scan` for why.
+        :meth:`scan` for why.  Always sent without obfuscation so the response
+        is comparable to the plain-text page.
         """
         return await self._send(vector, "DAST_BASELINE_1337", is_baseline=True)
 
@@ -337,8 +415,11 @@ class BaseScanner(ABC):
         elapsed_ms: int,
         confidence: Confidence,
         evidence: str,
+        encoding: str = "none",
     ) -> RawFinding:
         snippet = self._truncate(response.text)
+        if encoding != "none":
+            evidence = f"[obfuscation={encoding}] {evidence}"
         return RawFinding(
             vector=vector,
             vuln_type=self.VULN_TYPE,
@@ -347,4 +428,5 @@ class BaseScanner(ABC):
             confidence=confidence,
             evidence=evidence,
             response_time_ms=elapsed_ms,
+            encoding=encoding,
         )

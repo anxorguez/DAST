@@ -92,6 +92,7 @@ class PathTraversalScanner(BaseScanner):
     """
 
     VULN_TYPE = VulnType.PATH_TRAVERSAL
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
 
     def __init__(
         self,
@@ -101,10 +102,12 @@ class PathTraversalScanner(BaseScanner):
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Inject a traversal sequence and check if system file content is returned."""
         try:
-            response, elapsed = await self._send(vector, payload)
+            response, elapsed = await self._send(vector, payload, encoding=encoding)
             body = response.text
 
             # Strategy 1: actual file content visible in response.
@@ -127,6 +130,7 @@ class PathTraversalScanner(BaseScanner):
                         elapsed,
                         Confidence.CONFIRMED,
                         evidence,
+                        encoding,
                     )
 
             # Strategy 2: file-access error — traversal reached the filesystem.
@@ -151,6 +155,7 @@ class PathTraversalScanner(BaseScanner):
                         elapsed,
                         Confidence.LIKELY,
                         evidence,
+                        encoding,
                     )
 
         except Exception as exc:

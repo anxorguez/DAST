@@ -74,6 +74,7 @@ class XXEScanner(BaseScanner):
     """
 
     VULN_TYPE = VulnType.XXE
+    SUPPORTED_ENCODINGS = ("none",)
 
     def __init__(
         self,
@@ -83,7 +84,9 @@ class XXEScanner(BaseScanner):
     ) -> None:
         super().__init__(settings, http_client, rate_limiter)
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Send an XML payload and check for entity resolution or parser errors."""
         try:
             # Send payload as XML body regardless of the vector's default

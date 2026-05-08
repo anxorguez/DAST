@@ -72,6 +72,7 @@ class SQLiScanner(BaseScanner):
     """Detects SQL Injection using error-based, time-based, and UNION-based techniques."""
 
     VULN_TYPE = VulnType.SQLI
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
 
     def __init__(
         self,
@@ -89,21 +90,23 @@ class SQLiScanner(BaseScanner):
         self._reflective_cache: dict[tuple[str, str], bool] = {}
         self._reflective_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
-    async def _detect(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         """Try one payload and return a finding if a SQLi indicator is detected."""
         try:
             payload_lower = payload.lower()
 
             # Time-based payloads — must not use automatic retries (timing-sensitive).
             if any(kw in payload_lower for kw in ("sleep(", "waitfor delay", "pg_sleep(")):
-                return await self._detect_time_based(vector, payload)
+                return await self._detect_time_based(vector, payload, encoding)
 
             # UNION-based — look for the exfiltration marker.
             if "union" in payload_lower and _UNION_MARKER.lower() in payload_lower:
-                return await self._detect_union(vector, payload)
+                return await self._detect_union(vector, payload, encoding)
 
             # Error-based and boolean-based — look for SQL error messages.
-            return await self._detect_error_based(vector, payload)
+            return await self._detect_error_based(vector, payload, encoding)
 
         except Exception as exc:
             logger.debug(
@@ -118,8 +121,10 @@ class SQLiScanner(BaseScanner):
     # Detection strategies
     # -------------------------------------------------------------------
 
-    async def _detect_error_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
-        response, elapsed = await self._send(vector, payload)
+    async def _detect_error_based(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
+        response, elapsed = await self._send(vector, payload, encoding=encoding)
         body = response.text
 
         for pattern in _SQL_ERROR_PATTERNS:
@@ -141,10 +146,13 @@ class SQLiScanner(BaseScanner):
                     elapsed,
                     Confidence.CONFIRMED,
                     evidence,
+                    encoding,
                 )
         return None
 
-    async def _detect_time_based(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect_time_based(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         # Measure baseline first.
         try:
             _, baseline_ms = await self._send_baseline(vector)
@@ -154,7 +162,7 @@ class SQLiScanner(BaseScanner):
         # Send time-based payload without retry (timing must not be corrupted).
         t0 = time.monotonic()
         try:
-            response, _ = await self._send(vector, payload, no_retry=True)
+            response, _ = await self._send(vector, payload, no_retry=True, encoding=encoding)
         except Exception:
             return None
         elapsed_ms = int((time.monotonic() - t0) * 1000)
@@ -178,10 +186,13 @@ class SQLiScanner(BaseScanner):
                 elapsed_ms,
                 Confidence.LIKELY,
                 evidence,
+                encoding,
             )
         return None
 
-    async def _detect_union(self, vector: AttackVector, payload: str) -> RawFinding | None:
+    async def _detect_union(
+        self, vector: AttackVector, payload: str, encoding: str = "none"
+    ) -> RawFinding | None:
         # Reflective-endpoint guard.  Pages like xss_r/xss_s/csp/fi simply echo
         # the submitted value back into the body; UNION-based detection by
         # reflected marker would flag every such endpoint as critical SQLi
@@ -197,7 +208,7 @@ class SQLiScanner(BaseScanner):
             )
             return None
 
-        response, elapsed = await self._send(vector, payload)
+        response, elapsed = await self._send(vector, payload, encoding=encoding)
         if _UNION_MARKER in response.text:
             evidence = (
                 f"UNION-based SQLi: marker '{_UNION_MARKER}' reflected "
@@ -210,6 +221,7 @@ class SQLiScanner(BaseScanner):
                 elapsed,
                 Confidence.CONFIRMED,
                 evidence,
+                encoding,
             )
         return None
 
