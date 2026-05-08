@@ -200,6 +200,12 @@ Cobertura / alcance:
 - `--max-pages` (env `MAX_PAGES`, default `100`) — tope absoluto de páginas
 - `--max-payloads-per-vector` (env `MAX_PAYLOADS_PER_VECTOR`, default `50`) — palanca dominante de coste
 - `--payload-types` (env `PAYLOAD_TYPES`, default CSV completo) — clases de scanner activas
+- `--obfuscation` (env `OBFUSCATION`, default `none`) — CSV de encodings de
+  ofuscación a aplicar a los payloads. Valores válidos: `none`, `url`,
+  `double_url`, `base64`. Cada scanner declara qué encodings tienen sentido
+  para su tipo (ver `SUPPORTED_ENCODINGS` en cada `*_scanner.py`); el
+  efectivo es la intersección. Multiplica el coste por
+  `len(intersección)` por scanner.
 - `--request-timeout` (env `REQUEST_TIMEOUT`, default `30`) — timeout HTTP por petición
 - `--scanner-vector-timeout` (env `SCANNER_VECTOR_TIMEOUT_SECONDS`, default `120`) — tope de
   reloj por (vector × scanner). Bajarlo deja el escaneo avanzar más rápido
