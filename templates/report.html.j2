@@ -471,6 +471,45 @@
     .badge.PATH_TRAVERSAL  { background: #117a65; }
     .badge.OPEN_REDIRECT   { background: #b9770e; }
 
+    /* Column reordering — drag handles */
+    .findings-table th[draggable="true"] {
+      cursor: grab;
+      user-select: none;
+    }
+    .findings-table th[draggable="true"]:active { cursor: grabbing; }
+    .findings-table th[draggable="true"]::before {
+      content: "\2630";
+      display: inline-block;
+      margin-right: 6px;
+      opacity: 0.45;
+      font-size: 11px;
+      vertical-align: middle;
+    }
+    .findings-table th[draggable="true"]:hover::before { opacity: 0.85; }
+    .findings-table th.dragging { opacity: 0.4; }
+    .findings-table th.drop-before { box-shadow: inset 3px 0 0 0 #f1c40f; }
+    .findings-table th.drop-after  { box-shadow: inset -3px 0 0 0 #f1c40f; }
+    .findings-table th[data-col-key="index"] { cursor: default; }
+    .findings-table th[data-col-key="index"]::before { content: none; }
+    .findings-table th[draggable="true"]:focus {
+      outline: 2px solid #f1c40f;
+      outline-offset: -2px;
+    }
+    /* Reset-columns button — sits next to "Limpiar filtros". */
+    .findings-filters .reset-cols-btn {
+      background: #fff;
+      color: #1a1a2e;
+      border: 1px solid #1a1a2e;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .findings-filters .reset-cols-btn:hover { background: #1a1a2e; color: #fff; }
+
     .no-findings { color: #888; font-style: italic; }
     footer {
       text-align: center;
@@ -524,7 +563,8 @@
           {% for key, value in rows %}
           <div class="config-row">
             <span class="config-key">{{ key }}</span>
-            <span class="config-value">{% if value is none %}<em>none</em>
+            <span class="config-value">{% if value is none and key in ["max_pages", "max_depth", "max_payloads_per_vector", "scanner_vector_timeout_seconds"] %}<em>unlimited</em>
+              {%- elif value is none %}<em>none</em>
               {%- elif value == "" %}<em>(empty)</em>
               {%- elif value is sameas true %}true
               {%- elif value is sameas false %}false
@@ -641,36 +681,39 @@
             <input type="text" id="filter-evidence" placeholder="contiene...">
           </div>
           <div class="filter-actions">
-            <button type="button" class="reset-btn" id="filter-reset">Limpiar filtros</button>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="reset-btn" id="filter-reset">Limpiar filtros</button>
+              <button type="button" class="reset-cols-btn" id="reset-columns">Restaurar columnas</button>
+            </div>
           </div>
         </div>
       </details>
       <div class="findings-table-wrapper">
         <table class="findings-table">
           <colgroup>
-            <col class="col-index">
-            <col class="col-severity">
-            <col class="col-type">
-            <col class="col-url">
-            <col class="col-field">
-            <col class="col-payload">
-            <col class="col-evidence">
-            <col class="col-confidence">
-            <col class="col-score">
-            <col class="col-remediation">
+            <col class="col-index"       data-col-key="index">
+            <col class="col-severity"    data-col-key="severity">
+            <col class="col-type"        data-col-key="type">
+            <col class="col-url"         data-col-key="url">
+            <col class="col-field"       data-col-key="field">
+            <col class="col-payload"     data-col-key="payload">
+            <col class="col-evidence"    data-col-key="evidence">
+            <col class="col-confidence"  data-col-key="confidence">
+            <col class="col-score"       data-col-key="score">
+            <col class="col-remediation" data-col-key="remediation">
           </colgroup>
           <thead>
             <tr>
-              <th>#</th>
-              <th>Severity</th>
-              <th>Type</th>
-              <th>URL</th>
-              <th>Field</th>
-              <th>Payload</th>
-              <th>Evidence</th>
-              <th>Confidence</th>
-              <th>Score</th>
-              <th>Remediation</th>
+              <th data-col-key="index">#</th>
+              <th data-col-key="severity"    draggable="true" tabindex="0" aria-grabbed="false">Severity</th>
+              <th data-col-key="type"        draggable="true" tabindex="0" aria-grabbed="false">Type</th>
+              <th data-col-key="url"         draggable="true" tabindex="0" aria-grabbed="false">URL</th>
+              <th data-col-key="field"       draggable="true" tabindex="0" aria-grabbed="false">Field</th>
+              <th data-col-key="payload"     draggable="true" tabindex="0" aria-grabbed="false">Payload</th>
+              <th data-col-key="evidence"    draggable="true" tabindex="0" aria-grabbed="false">Evidence</th>
+              <th data-col-key="confidence"  draggable="true" tabindex="0" aria-grabbed="false">Confidence</th>
+              <th data-col-key="score"       draggable="true" tabindex="0" aria-grabbed="false">Score</th>
+              <th data-col-key="remediation" draggable="true" tabindex="0" aria-grabbed="false">Remediation</th>
             </tr>
           </thead>
           <tbody>
@@ -896,6 +939,183 @@
       });
 
       applyFilters();
+
+      // ------------------------------------------------------------
+      // Column reordering (drag & drop + keyboard + persistence)
+      // ------------------------------------------------------------
+      (function setupColumnReorder() {
+        var STORAGE_KEY = "dast.findings.columnOrder.v1";
+        var table = document.querySelector(".findings-table");
+        if (!table) { return; }
+        var colgroup = table.querySelector("colgroup");
+        var headerRow = table.querySelector("thead tr");
+        if (!colgroup || !headerRow) { return; }
+
+        var defaultKeys = Array.prototype.map.call(
+          headerRow.querySelectorAll("th"),
+          function (th) { return th.getAttribute("data-col-key"); }
+        );
+
+        function readStoredOrder() {
+          try {
+            var raw = window.localStorage.getItem(STORAGE_KEY);
+            if (!raw) { return null; }
+            var parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed) || parsed.length !== defaultKeys.length) { return null; }
+            var defaultSet = {};
+            for (var i = 0; i < defaultKeys.length; i++) { defaultSet[defaultKeys[i]] = true; }
+            for (var j = 0; j < parsed.length; j++) {
+              if (!defaultSet[parsed[j]]) { return null; }
+            }
+            return parsed;
+          } catch (e) { return null; }
+        }
+
+        function persistOrder(keys) {
+          try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(keys)); }
+          catch (e) { /* private mode / quota — silent failure */ }
+        }
+
+        function applyOrder(keys) {
+          if (!keys || keys.length !== defaultKeys.length) { return; }
+
+          var colsByKey = {};
+          Array.prototype.forEach.call(colgroup.children, function (col) {
+            colsByKey[col.getAttribute("data-col-key")] = col;
+          });
+
+          var thsByKey = {};
+          var keyIndex = {};
+          Array.prototype.forEach.call(headerRow.children, function (th, idx) {
+            var k = th.getAttribute("data-col-key");
+            thsByKey[k] = th;
+            keyIndex[k] = idx;
+          });
+
+          keys.forEach(function (k) { colgroup.appendChild(colsByKey[k]); });
+          keys.forEach(function (k) { headerRow.appendChild(thsByKey[k]); });
+
+          var bodyRows = table.tBodies[0].rows;
+          for (var r = 0; r < bodyRows.length; r++) {
+            var row = bodyRows[r];
+            var tdSnapshot = Array.prototype.slice.call(row.children);
+            keys.forEach(function (k) { row.appendChild(tdSnapshot[keyIndex[k]]); });
+          }
+        }
+
+        function currentOrder() {
+          return Array.prototype.map.call(
+            headerRow.children,
+            function (th) { return th.getAttribute("data-col-key"); }
+          );
+        }
+
+        function moveKey(keys, srcKey, targetKey, before) {
+          var out = keys.filter(function (k) { return k !== srcKey; });
+          var idx = out.indexOf(targetKey);
+          if (idx === -1) { return keys; }
+          out.splice(before ? idx : idx + 1, 0, srcKey);
+          return out;
+        }
+
+        function isAnchored(key) { return key === "index"; }
+
+        // --- Drag & drop ---
+        var dragSrcKey = null;
+
+        function clearDropMarkers() {
+          Array.prototype.forEach.call(headerRow.children, function (th) {
+            th.classList.remove("drop-before", "drop-after", "dragging");
+            th.setAttribute("aria-grabbed", "false");
+          });
+        }
+
+        headerRow.addEventListener("dragstart", function (e) {
+          var th = e.target.closest("th[draggable='true']");
+          if (!th) { return; }
+          dragSrcKey = th.getAttribute("data-col-key");
+          th.classList.add("dragging");
+          th.setAttribute("aria-grabbed", "true");
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = "move";
+            try { e.dataTransfer.setData("text/plain", dragSrcKey); } catch (_) {}
+          }
+        });
+
+        headerRow.addEventListener("dragover", function (e) {
+          var th = e.target.closest("th");
+          if (!th || !dragSrcKey) { return; }
+          var key = th.getAttribute("data-col-key");
+          if (isAnchored(key)) { return; }
+          e.preventDefault();
+          var rect = th.getBoundingClientRect();
+          var before = (e.clientX - rect.left) < rect.width / 2;
+          Array.prototype.forEach.call(headerRow.children, function (other) {
+            if (other !== th) { other.classList.remove("drop-before", "drop-after"); }
+          });
+          th.classList.toggle("drop-before", before);
+          th.classList.toggle("drop-after", !before);
+        });
+
+        headerRow.addEventListener("dragleave", function (e) {
+          var th = e.target.closest("th");
+          if (th) { th.classList.remove("drop-before", "drop-after"); }
+        });
+
+        headerRow.addEventListener("drop", function (e) {
+          e.preventDefault();
+          var th = e.target.closest("th");
+          if (!th || !dragSrcKey) { clearDropMarkers(); dragSrcKey = null; return; }
+          var targetKey = th.getAttribute("data-col-key");
+          if (isAnchored(targetKey) || targetKey === dragSrcKey) {
+            clearDropMarkers(); dragSrcKey = null; return;
+          }
+          var before = th.classList.contains("drop-before");
+          var newOrder = moveKey(currentOrder(), dragSrcKey, targetKey, before);
+          applyOrder(newOrder);
+          persistOrder(newOrder);
+          clearDropMarkers();
+          dragSrcKey = null;
+        });
+
+        headerRow.addEventListener("dragend", function () {
+          clearDropMarkers();
+          dragSrcKey = null;
+        });
+
+        // --- Keyboard ---
+        headerRow.addEventListener("keydown", function (e) {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") { return; }
+          var th = e.target.closest("th[draggable='true']");
+          if (!th) { return; }
+          var srcKey = th.getAttribute("data-col-key");
+          var order = currentOrder();
+          var idx = order.indexOf(srcKey);
+          var swapIdx = e.key === "ArrowLeft" ? idx - 1 : idx + 1;
+          if (swapIdx < 0 || swapIdx >= order.length) { return; }
+          if (isAnchored(order[swapIdx])) { return; }
+          e.preventDefault();
+          var newOrder = order.slice();
+          var tmp = newOrder[idx]; newOrder[idx] = newOrder[swapIdx]; newOrder[swapIdx] = tmp;
+          applyOrder(newOrder);
+          persistOrder(newOrder);
+          var movedTh = headerRow.querySelector('th[data-col-key="' + srcKey + '"]');
+          if (movedTh) { movedTh.focus(); }
+        });
+
+        // --- Reset button ---
+        var resetColsBtn = document.getElementById("reset-columns");
+        if (resetColsBtn) {
+          resetColsBtn.addEventListener("click", function () {
+            applyOrder(defaultKeys);
+            try { window.localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+          });
+        }
+
+        // --- Restore on load ---
+        var stored = readStoredOrder();
+        if (stored) { applyOrder(stored); }
+      })();
     })();
   </script>
 </body>
