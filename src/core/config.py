@@ -46,8 +46,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # --- Crawler ------------------------------------------------------
-    max_depth: int = 3
-    max_pages: int = 100
+    # Convención: None = "sin tope". requests_per_second mantiene 0 = unlimited
+    # por compatibilidad histórica; los cuatro campos de cobertura usan None.
+    max_depth: int | None = 3
+    max_pages: int | None = 100
     request_timeout: int = 30
     concurrent_pages: int = 5
 
@@ -69,7 +71,7 @@ class Settings(BaseSettings):
     # runs.  Valid values: none, url, double_url, base64.  See
     # src/fuzzing/obfuscators.py for the full catalogue.
     obfuscation: str = "none"
-    max_payloads_per_vector: int = 50
+    max_payloads_per_vector: int | None = 50
     concurrent_vectors: int = 5  # Max vectors scanned in parallel
     concurrent_payloads: int = 10  # Max payloads tested in parallel per scanner
     requests_per_second: int = 0  # Rate limit (0 = unlimited)
@@ -80,8 +82,8 @@ class Settings(BaseSettings):
     scanner_http_retries: int = 1
     # Hard wall-clock cap on the time a single (vector × scanner) pair can
     # spend in :meth:`Fuzzer._fuzz_vector`.  Prevents one stuck endpoint from
-    # blocking the whole fuzz phase indefinitely.
-    scanner_vector_timeout_seconds: int = 120
+    # blocking the whole fuzz phase indefinitely.  None = no cap.
+    scanner_vector_timeout_seconds: int | None = 120
 
     # --- Database -----------------------------------------------------
     db_path: str = ""
@@ -138,6 +140,7 @@ def get_settings(**overrides: Any) -> Settings:
     """Build a Settings instance, applying explicit overrides on top of env/defaults.
 
     Priority (highest wins): overrides > environment variables > defaults.
+    ``None`` is a meaningful override for coverage fields (means "unlimited");
+    callers are responsible for only including keys they actually want to set.
     """
-    merged = {k: v for k, v in overrides.items() if v is not None}
-    return Settings(**merged)
+    return Settings(**overrides)

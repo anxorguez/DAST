@@ -40,7 +40,7 @@ _SUBTYPE_ORDER: dict[VulnType, tuple[str, ...]] = {
 class PayloadLoader:
     """Reads payload text files and returns deduplicated payload lists."""
 
-    def load(self, vuln_type: VulnType, max_count: int = 50) -> list[str]:
+    def load(self, vuln_type: VulnType, max_count: int | None = 50) -> list[str]:
         """Load payloads for *vuln_type* from all files in its directory.
 
         Files are read in sorted order. Lines starting with '#' and blank
@@ -48,7 +48,8 @@ class PayloadLoader:
 
         Args:
             vuln_type: The vulnerability type whose payloads to load.
-            max_count: Hard cap on the number of payloads returned.
+            max_count: Hard cap on the number of payloads returned. ``None``
+                means no cap — return every payload in the directory.
 
         Returns:
             List of payload strings, up to *max_count* entries.
@@ -87,7 +88,7 @@ class PayloadLoader:
                         if stripped not in seen:
                             seen.add(stripped)
                             payloads.append(stripped)
-                            if len(payloads) >= max_count:
+                            if max_count is not None and len(payloads) >= max_count:
                                 return payloads
             except OSError as exc:
                 logger.warning("Could not read payload file {f}: {err}", f=filepath, err=exc)
@@ -95,13 +96,16 @@ class PayloadLoader:
         logger.debug("Loaded {n} payloads for {vt}", n=len(payloads), vt=vuln_type.value)
         return payloads
 
-    def load_subtype(self, vuln_type: VulnType, subtype: str, max_count: int = 50) -> list[str]:
+    def load_subtype(
+        self, vuln_type: VulnType, subtype: str, max_count: int | None = 50
+    ) -> list[str]:
         """Load payloads from a specific subtype file (e.g. 'time_based' for sqli).
 
         Args:
             vuln_type: The vulnerability type directory.
             subtype: The filename without extension (e.g. 'error_based').
-            max_count: Hard cap on the number of payloads returned.
+            max_count: Hard cap on the number of payloads returned. ``None``
+                means no cap.
 
         Returns:
             List of payload strings, or an empty list if the file is not found.
@@ -122,7 +126,7 @@ class PayloadLoader:
                     if stripped not in seen:
                         seen.add(stripped)
                         payloads.append(stripped)
-                        if len(payloads) >= max_count:
+                        if max_count is not None and len(payloads) >= max_count:
                             break
         except OSError as exc:
             logger.warning("Could not read payload file {f}: {err}", f=filepath, err=exc)

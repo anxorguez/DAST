@@ -128,7 +128,9 @@ class Fuzzer:
                 # cancel the scanner and move on — the early-abort heuristic
                 # in BaseScanner handles the common case but doesn't help if
                 # individual requests hang for tens of seconds each.
-                timeout_s = max(1, self._settings.scanner_vector_timeout_seconds)
+                # None = no cap (asyncio.wait_for(timeout=None) waits forever).
+                raw_timeout = self._settings.scanner_vector_timeout_seconds
+                timeout_s: float | None = max(1, raw_timeout) if raw_timeout is not None else None
                 vector_timed_out = False
                 try:
                     vt_findings = await asyncio.wait_for(

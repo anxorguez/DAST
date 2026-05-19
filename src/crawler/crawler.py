@@ -312,12 +312,15 @@ class Crawler:
         in_queue: set[str] = {self._settings.target_url}
         hit_max_pages = False
 
-        while queue and len(crawled) < self._settings.max_pages:
+        max_pages = self._settings.max_pages  # int | None
+        max_depth = self._settings.max_depth  # int | None
+
+        while queue and (max_pages is None or len(crawled) < max_pages):
             url, depth = queue.popleft()
 
             if url in self._visited:
                 continue
-            if depth > self._settings.max_depth:
+            if max_depth is not None and depth > max_depth:
                 continue
             if _is_download_url(url):
                 # Skip silently: these URLs trigger a Playwright download
@@ -347,13 +350,13 @@ class Crawler:
         #     URLs to visit.  Raising max_pages would discover more.
         #   * max_depth_reached — only entries deeper than max_depth remain.
         #     Raising max_depth (not max_pages) would discover more.
-        if len(crawled) >= self._settings.max_pages and queue:
+        if max_pages is not None and len(crawled) >= max_pages and queue:
             hit_max_pages = True
 
         unvisited = [(u, d) for (u, d) in queue if u not in self._visited]
         if hit_max_pages:
             self._crawl_stats.crawl_limit_reason = "max_pages_reached"
-        elif unvisited and all(d > self._settings.max_depth for _, d in unvisited):
+        elif max_depth is not None and unvisited and all(d > max_depth for _, d in unvisited):
             self._crawl_stats.crawl_limit_reason = "max_depth_reached"
         else:
             self._crawl_stats.crawl_limit_reason = "frontier_exhausted"

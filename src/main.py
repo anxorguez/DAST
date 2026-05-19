@@ -41,6 +41,7 @@ from typing import Any
 import click
 from loguru import logger
 
+from src.core.cli_types import UNLIMITED_INT
 from src.core.config import Settings, get_settings
 from src.core.exceptions import DASTError
 from src.core.logger import setup_logger
@@ -55,6 +56,11 @@ def _make_scan_id() -> str:
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     rand_hex = binascii.hexlify(os.urandom(4)).decode("ascii")
     return f"{timestamp}_{rand_hex}"
+
+
+def _fmt_cap(v: int | None) -> str:
+    """Format a coverage cap value for log output."""
+    return "unlimited" if v is None else str(v)
 
 
 def _safe_dump(settings: Settings) -> dict[str, Any]:
@@ -177,19 +183,24 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
     "depth",
     default=3,
     show_default=True,
-    type=int,
+    type=UNLIMITED_INT,
     envvar="MAX_DEPTH",
-    help="[Cobertura] Maximum BFS depth followed by the crawler.",
+    help=(
+        "[Cobertura] Maximum BFS depth followed by the crawler. "
+        "Use 'unlimited' to disable the depth cap (relies on --max-pages "
+        "and host-dedupe to terminate)."
+    ),
 )
 @click.option(
     "--max-pages",
     "max_pages",
     default=100,
     show_default=True,
-    type=int,
+    type=UNLIMITED_INT,
     envvar="MAX_PAGES",
     help=(
-        "[Cobertura] Hard cap on pages crawled. Together with --depth, defines the crawler's reach."
+        "[Cobertura] Hard cap on pages crawled. Use 'unlimited' to exhaust "
+        "the frontier within the configured depth."
     ),
 )
 @click.option(
@@ -197,11 +208,12 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
     "max_payloads_per_vector",
     default=50,
     show_default=True,
-    type=int,
+    type=UNLIMITED_INT,
     envvar="MAX_PAYLOADS_PER_VECTOR",
     help=(
-        "[Cobertura] Maximum payloads per (vector × scanner). Dominant lever "
-        "for cost and intrusiveness."
+        "[Cobertura] Maximum payloads per (vector × scanner). "
+        "Use 'unlimited' to try every payload in the file (dominant lever "
+        "for cost and intrusiveness)."
     ),
 )
 @click.option(
@@ -243,14 +255,16 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
 @click.option(
     "--scanner-vector-timeout",
     "scanner_vector_timeout",
-    default=None,
-    type=int,
+    default=120,
+    show_default=True,
+    type=UNLIMITED_INT,
     envvar="SCANNER_VECTOR_TIMEOUT_SECONDS",
     help=(
         "[Cobertura] Wall-clock cap (seconds) for one scanner against one vector "
         "before its in-flight payloads are cancelled. Lower values keep the run "
         "moving past stuck endpoints; higher values give time-based payloads "
-        "(SLEEP/BENCHMARK) room to confirm. Default 120s."
+        "(SLEEP/BENCHMARK) room to confirm. Use 'unlimited' to remove the cap "
+        "(only recommended when debugging time-based payloads against a known slow target)."
     ),
 )
 # --- Output / logging --------------------------------------------------------
@@ -284,9 +298,9 @@ def main(
     concurrent_vectors: int,
     concurrent_payloads: int,
     requests_per_second: int,
-    depth: int,
-    max_pages: int,
-    max_payloads_per_vector: int,
+    depth: int | None,
+    max_pages: int | None,
+    max_payloads_per_vector: int | None,
     payload_types: str,
     obfuscation: str,
     request_timeout: int,
@@ -299,6 +313,10 @@ def main(
     # ------------------------------------------------------------------
     # Build settings (no disk side-effects yet)
     # ------------------------------------------------------------------
+    # Coverage flags (depth/max_pages/max_payloads_per_vector/scanner_vector_timeout)
+    # always go in overrides because None is a meaningful value (= "unlimited").
+    # Optional flags (scan_name, output_dir, log_level) are only added when the
+    # user explicitly passed them, so env vars can still take effect.
     overrides: dict[str, object] = {
         "target_url": url,
         "concurrent_vectors": concurrent_vectors,
@@ -307,12 +325,11 @@ def main(
         "max_depth": depth,
         "max_pages": max_pages,
         "max_payloads_per_vector": max_payloads_per_vector,
+        "scanner_vector_timeout_seconds": scanner_vector_timeout,
         "payload_types": payload_types,
         "obfuscation": obfuscation,
         "request_timeout": request_timeout,
     }
-    if scanner_vector_timeout is not None:
-        overrides["scanner_vector_timeout_seconds"] = scanner_vector_timeout
     if output:
         overrides["scan_name"] = output
     if output_base:
@@ -355,9 +372,9 @@ def main(
         cv=concurrent_vectors,
         cp=concurrent_payloads,
         rps=requests_per_second,
-        d=depth,
-        mp=max_pages,
-        mppv=max_payloads_per_vector,
+        d=_fmt_cap(depth),
+        mp=_fmt_cap(max_pages),
+        mppv=_fmt_cap(max_payloads_per_vector),
         pt=payload_types,
         obf=obfuscation,
         rt=request_timeout,
