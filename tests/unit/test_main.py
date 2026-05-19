@@ -196,7 +196,7 @@ def test_scanner_vector_timeout_cli_flag_overrides_default() -> None:
                 "--max-pages",
                 "1",
                 "--depth",
-                "0",
+                "1",
             ],
             catch_exceptions=False,
         )
@@ -228,7 +228,7 @@ def test_obfuscation_cli_flag_propagates_to_settings() -> None:
                 "--max-pages",
                 "1",
                 "--depth",
-                "0",
+                "1",
             ],
             catch_exceptions=False,
         )

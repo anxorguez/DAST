@@ -196,9 +196,13 @@ Velocidad / huella:
 
 Cobertura / alcance:
 
-- `--depth` (env `MAX_DEPTH`, default `3`) — profundidad BFS del crawler
-- `--max-pages` (env `MAX_PAGES`, default `100`) — tope absoluto de páginas
-- `--max-payloads-per-vector` (env `MAX_PAYLOADS_PER_VECTOR`, default `50`) — palanca dominante de coste
+- `--depth` (env `MAX_DEPTH`, default `3`) — profundidad BFS del crawler.
+  Acepta `unlimited` (o `none`/`inf`/`-1`) para desactivar el tope;
+  `--max-pages` actúa de cinturón de seguridad.
+- `--max-pages` (env `MAX_PAGES`, default `100`) — tope absoluto de páginas.
+  Acepta `unlimited` para agotar el frontier dentro del `--depth` configurado.
+- `--max-payloads-per-vector` (env `MAX_PAYLOADS_PER_VECTOR`, default `50`) — palanca dominante de coste.
+  Acepta `unlimited` para probar todos los payloads del archivo.
 - `--payload-types` (env `PAYLOAD_TYPES`, default CSV completo) — clases de scanner activas
 - `--obfuscation` (env `OBFUSCATION`, default `none`) — CSV de encodings de
   ofuscación a aplicar a los payloads. Valores válidos: `none`, `url`,
@@ -207,10 +211,18 @@ Cobertura / alcance:
   efectivo es la intersección. Multiplica el coste por
   `len(intersección)` por scanner.
 - `--request-timeout` (env `REQUEST_TIMEOUT`, default `30`) — timeout HTTP por petición
+  (no acepta `unlimited` — un timeout HTTP infinito congela el escaneo ante cualquier cuelgue).
 - `--scanner-vector-timeout` (env `SCANNER_VECTOR_TIMEOUT_SECONDS`, default `120`) — tope de
   reloj por (vector × scanner). Bajarlo deja el escaneo avanzar más rápido
   ante endpoints atascados; subirlo da margen a payloads time-based
   (SLEEP/BENCHMARK) para confirmarse.
+  Acepta `unlimited` para eliminar el tope (solo recomendado al depurar payloads time-based).
+
+**Convención `unlimited`:** los cuatro campos de cobertura (`max_depth`, `max_pages`,
+`max_payloads_per_vector`, `scanner_vector_timeout_seconds`) usan `int | None` internamente,
+donde `None` = "sin tope". `requests_per_second` mantiene `0 = unlimited` por compatibilidad
+histórica. En `report.json` los campos unlimited aparecen como `null`; en el HTML como
+`unlimited` en cursiva.
 
 Cada `report.html`/`report.json` incluye un bloque "Effective Configuration"
 con el dump completo de los Settings usados, para que el analista pueda
