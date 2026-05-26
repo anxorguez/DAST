@@ -4,6 +4,8 @@
 set -euo pipefail
 
 DVWA_URL="http://localhost:8080"
+WAF_URL="http://localhost:8088"
+CFSIM_URL="http://localhost:8089/cdn-cgi/challenge-page"
 HEALTH_TIMEOUT=60
 HEALTH_INTERVAL=3
 
@@ -51,10 +53,11 @@ echo "[INFO] Pulling latest container images..."
 docker compose pull --ignore-buildable
 
 # ---------------------------------------------------------------------------
-# 5. Start DVWA and its MariaDB database in the background.
+# 5. Start the DVWA backend, its MariaDB database, the ModSecurity WAF and
+#    the cf_clearance simulator in the background.
 # ---------------------------------------------------------------------------
-echo "[INFO] Starting dvwa and db services..."
-docker compose up -d dvwa db
+echo "[INFO] Starting dvwa-origin, db, dvwa-waf and cf-sim services..."
+docker compose up -d dvwa-origin db dvwa-waf cf-sim
 
 # ---------------------------------------------------------------------------
 # 6. Health-check loop: wait until DVWA responds on port 8080.
@@ -65,7 +68,7 @@ until curl --silent --max-time 3 --output /dev/null --write-out "%{http_code}" \
         "${DVWA_URL}" | grep -qE "^(200|302)$"; do
     if [ "${elapsed}" -ge "${HEALTH_TIMEOUT}" ]; then
         echo "[ERROR] DVWA did not respond within ${HEALTH_TIMEOUT} seconds. Aborting." >&2
-        echo "[ERROR] Check logs with: docker compose logs dvwa" >&2
+        echo "[ERROR] Check logs with: docker compose logs dvwa-origin" >&2
         exit 1
     fi
     sleep "${HEALTH_INTERVAL}"
@@ -108,6 +111,43 @@ until ! curl --silent --max-time 5 --location \
     echo "[INFO] Still waiting for DB... (${elapsed}s elapsed)"
 done
 echo "[INFO] DVWA database verified — ready to scan."
+
+# ---------------------------------------------------------------------------
+# 7c. Wait until dvwa-waf responds on port 8088 (proxies to dvwa-origin).
+# ---------------------------------------------------------------------------
+echo "[INFO] Waiting for dvwa-waf to become ready (timeout: ${HEALTH_TIMEOUT}s)..."
+elapsed=0
+until curl --silent --max-time 3 --output /dev/null --write-out "%{http_code}" \
+        "${WAF_URL}" | grep -qE "^(200|302|403)$"; do
+    if [ "${elapsed}" -ge "${HEALTH_TIMEOUT}" ]; then
+        echo "[ERROR] dvwa-waf did not respond within ${HEALTH_TIMEOUT}s. Aborting." >&2
+        echo "[ERROR] Check logs with: docker compose logs dvwa-waf" >&2
+        exit 1
+    fi
+    sleep "${HEALTH_INTERVAL}"
+    elapsed=$((elapsed + HEALTH_INTERVAL))
+    echo "[INFO] Still waiting for dvwa-waf... (${elapsed}s elapsed)"
+done
+echo "[INFO] dvwa-waf is up. Internal alias 'dvwa' now resolves to the WAF."
+
+# ---------------------------------------------------------------------------
+# 7d. Wait until cf-sim responds on port 8089 (proxies to dvwa-origin).
+# ---------------------------------------------------------------------------
+echo "[INFO] Waiting for cf-sim to become ready (timeout: ${HEALTH_TIMEOUT}s)..."
+elapsed=0
+until curl --silent --max-time 3 --output /dev/null --write-out "%{http_code}" \
+        "${CFSIM_URL}" | grep -qE "^(200|302|403)$"; do
+    if [ "${elapsed}" -ge "${HEALTH_TIMEOUT}" ]; then
+        echo "[ERROR] cf-sim did not respond within ${HEALTH_TIMEOUT}s. Aborting." >&2
+        echo "[ERROR] Check logs with: docker compose logs cf-sim" >&2
+        exit 1
+    fi
+    sleep "${HEALTH_INTERVAL}"
+    elapsed=$((elapsed + HEALTH_INTERVAL))
+    echo "[INFO] Still waiting for cf-sim... (${elapsed}s elapsed)"
+done
+echo "[INFO] cf-sim is up. Internal alias 'dvwa-cf' resolves to the simulator."
+
 # ---------------------------------------------------------------------------
 # 8. Print usage instructions.
 # ---------------------------------------------------------------------------
@@ -115,7 +155,10 @@ cat <<'EOF'
 
 [INFO] Environment is ready.
 
-To run a scan against DVWA:
+The internal hostname `dvwa` now resolves to the ModSecurity WAF in front
+of the actual DVWA backend (which is reachable as `dvwa-origin`).
+
+To run a scan against DVWA THROUGH the WAF (default scenario):
 
     docker compose run --rm dast-app --url http://dvwa \
         --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
@@ -123,23 +166,31 @@ To run a scan against DVWA:
         --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
         --request-timeout 30
 
-To run with verbose logging:
+To run a scan against DVWA BYPASSING the WAF (baseline, v3-style):
 
-    docker compose run --rm dast-app --url http://dvwa \
+    docker compose run --rm dast-app --url http://dvwa-origin \
         --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
         --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
         --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
-        --request-timeout 30 --log-level DEBUG
+        --request-timeout 30
 
-To target a different application (update TARGET_URL in .env first):
+To exercise the obfuscation layer against the WAF:
 
-    docker compose run --rm dast-app --url http://your-app \
-        --concurrent-vectors 10 --concurrent-payloads 20 --requests-per-second 0 \
-        --depth 5 --max-pages 500 --max-payloads-per-vector 200 \
-        --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
-        --request-timeout 60
+    docker compose run --rm dast-app --url http://dvwa \
+        --obfuscation none,double_url,base64 \
+        --concurrent-vectors 5 --concurrent-payloads 10 ...
 
-Scan reports are saved to ./reports/<scan_id>/ on the host.
+To exercise the cf_clearance bridge against the simulator:
+
+    docker compose run --rm dast-app --url http://dvwa-cf \
+        --cf-clearance-bridge \
+        --concurrent-vectors 5 --concurrent-payloads 10 \
+        --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+        --payload-types sqli,xss \
+        --request-timeout 30
+
+Reports are saved to ./reports/outputs/<scan_name>/ on the host.
+Inspect WAF blocks: docker compose logs dvwa-waf | grep ModSecurity
 
 To stop the environment when finished, run:
 
