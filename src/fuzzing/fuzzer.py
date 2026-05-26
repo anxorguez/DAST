@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from loguru import logger
@@ -50,11 +51,18 @@ class Fuzzer:
         settings: Settings,
         session_cookies: list[dict[str, Any]] | None = None,
         rate_limiter: GlobalRateLimiter | None = None,
+        session_user_agent: str | None = None,
+        cf_clearance_refresh_callback: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     ) -> None:
         self._settings = settings
         self._loader = PayloadLoader()
         self._session_cookies = session_cookies or []
         self._rate_limiter = rate_limiter
+        # Propagated from the crawler's BrowserContext.  The UA keeps a
+        # cf_clearance-style cookie valid; the callback lets the HTTPClient
+        # renew the session reactively when the cookie expires mid-scan.
+        self._session_user_agent = session_user_agent
+        self._cf_clearance_refresh_callback = cf_clearance_refresh_callback
         # Public attribute: XSS payloads injected into the target during fuzzing.
         self.injected_xss_payloads: list[str] = []
         self._xss_lock = asyncio.Lock()
@@ -81,6 +89,8 @@ class Fuzzer:
             timeout=self._settings.request_timeout,
             max_retries=self._settings.scanner_http_retries,
             session_cookies=self._session_cookies,
+            user_agent=self._session_user_agent,
+            cf_clearance_refresh_callback=self._cf_clearance_refresh_callback,
         ) as http_client:
             tasks = [
                 asyncio.create_task(self._fuzz_vector(vector_sem, vector, http_client))

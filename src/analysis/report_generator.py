@@ -50,6 +50,7 @@ _CONFIG_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "auth_username_field",
             "auth_password_field",
             "auth_success_url",
+            "cf_clearance_bridge_enabled",
         ),
     ),
     ("Output", ("output_dir", "scan_name", "log_level")),
