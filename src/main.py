@@ -267,6 +267,19 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
         "(only recommended when debugging time-based payloads against a known slow target)."
     ),
 )
+# --- Anti-bot / session bridge ----------------------------------------------
+@click.option(
+    "--cf-clearance-bridge/--no-cf-clearance-bridge",
+    "cf_clearance_bridge",
+    default=None,
+    envvar="CF_CLEARANCE_BRIDGE_ENABLED",
+    help=(
+        "Enable reactive cf_clearance refresh: when an upstream returns a "
+        "challenge-page 403, re-launch Playwright to renew the session "
+        "cookie and User-Agent. Default (off) still propagates the initial "
+        "cookies and UA from the crawler to the fuzzer."
+    ),
+)
 # --- Output / logging --------------------------------------------------------
 @click.option(
     "--output",
@@ -305,6 +318,7 @@ def main(
     obfuscation: str,
     request_timeout: int,
     scanner_vector_timeout: int | None,
+    cf_clearance_bridge: bool | None,
     output: str | None,
     output_base: str | None,
     log_level: str | None,
@@ -330,6 +344,8 @@ def main(
         "obfuscation": obfuscation,
         "request_timeout": request_timeout,
     }
+    if cf_clearance_bridge is not None:
+        overrides["cf_clearance_bridge_enabled"] = cf_clearance_bridge
     if output:
         overrides["scan_name"] = output
     if output_base:
