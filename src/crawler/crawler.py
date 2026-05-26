@@ -97,6 +97,10 @@ class Crawler:
         # session established by pre-scan login. Each entry is Playwright's
         # cookie dict: {name, value, domain, path, ...}.
         self._session_cookies: list[dict[str, Any]] = []
+        # User-Agent of the authenticated BrowserContext, captured alongside
+        # the cookies.  The Fuzzer's HTTPClient reuses it so that a cookie
+        # bound to this UA (e.g. a cf_clearance clearance) is not rejected.
+        self._session_user_agent: str | None = None
         # Why the crawl stopped — populated by ``_bfs_crawl`` and read by
         # the pipeline so the report can distinguish "max-pages reached"
         # from "frontier exhausted" and the analyst can tell whether
@@ -110,6 +114,16 @@ class Crawler:
         Empty if authentication was not enabled or crawl() has not yet run.
         """
         return list(self._session_cookies)
+
+    @property
+    def session_user_agent(self) -> str | None:
+        """User-Agent of the authenticated browser context after crawl().
+
+        ``None`` if authentication was not enabled or crawl() has not yet run.
+        The Fuzzer propagates it to its HTTPClient so cookies bound to this
+        UA (e.g. a cf_clearance clearance) survive into the fuzzing phase.
+        """
+        return self._session_user_agent
 
     @property
     def crawl_stats(self) -> CrawlStats:
@@ -145,6 +159,10 @@ class Crawler:
                     # request would bounce back to the login page.
                     raw_cookies = await context.cookies()
                     self._session_cookies = [dict(c) for c in raw_cookies]
+                    # Capture the browser UA too: a cf_clearance-style cookie
+                    # is bound to the UA that requested it, so the fuzzer must
+                    # reuse this exact value (see HTTPClient.user_agent).
+                    self._session_user_agent = await self._capture_user_agent(context)
 
                 pages = await self._bfs_crawl(context)
                 logger.info(
@@ -193,9 +211,66 @@ class Crawler:
         )
         return hits
 
+    async def refresh_session_async(self) -> dict[str, Any]:
+        """Re-launch Playwright to renew the session cookies and User-Agent.
+
+        Used as the cf_clearance refresh callback handed to the Fuzzer's
+        :class:`~src.core.http_client.HTTPClient`.  Opening a fresh browser
+        and navigating to the target re-triggers any anti-bot challenge in
+        front of it (e.g. the cf-sim fixture); if authentication is enabled
+        the login form is submitted again.  The captured cookies + UA are
+        stored on the instance and returned so the HTTPClient can apply them.
+
+        Returns:
+            A dict with ``cookies`` (Playwright-format list) and
+            ``user_agent`` (str).
+        """
+        timeout_ms = int(self._settings.request_timeout * 1000)
+        async with BrowserManager(headless=True, timeout_ms=timeout_ms) as manager:
+            context = await manager.new_context()
+            try:
+                if self._settings.auth_enabled:
+                    await self._authenticate(context)
+                else:
+                    page = await context.new_page()
+                    try:
+                        await page.goto(self._settings.target_url, wait_until="domcontentloaded")
+                    finally:
+                        await page.close()
+                raw_cookies = await context.cookies()
+                ua = await self._capture_user_agent(context)
+                self._session_cookies = [dict(c) for c in raw_cookies]
+                self._session_user_agent = ua
+                logger.info(
+                    "cf_clearance session refreshed (cookies={n})",
+                    n=len(raw_cookies),
+                )
+                return {"cookies": self._session_cookies, "user_agent": ua}
+            finally:
+                await context.close()
+
     # -------------------------------------------------------------------
     # Private helpers
     # -------------------------------------------------------------------
+
+    async def _capture_user_agent(self, context: BrowserContext) -> str | None:
+        """Read ``navigator.userAgent`` from a throwaway page in *context*.
+
+        ``BrowserContext`` itself cannot evaluate JS — only a ``Page`` can —
+        so a short-lived page is opened just to read the UA string.
+        """
+        page = await context.new_page()
+        try:
+            ua = await page.evaluate("() => navigator.userAgent")
+            return str(ua) if ua else None
+        except Exception as exc:
+            logger.debug("Could not capture browser User-Agent: {e}", e=exc)
+            return None
+        finally:
+            try:
+                await page.close()
+            except Exception:
+                pass
 
     async def _authenticate(self, context: BrowserContext) -> None:
         """Submit the login form and verify redirection to the success URL."""
