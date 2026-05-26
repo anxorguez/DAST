@@ -24,6 +24,15 @@ src/
 payloads/         # Archivos .txt de payloads por tipo de vulnerabilidad
 config/           # Perfiles YAML de escaneo (default, aggressive, stealth)
 templates/        # Plantilla HTML Jinja2 para el reporte
+infra/
+  modsecurity/    # Configuración del WAF dvwa-waf
+    exclusions.conf
+    README.md
+  cf-sim/         # Simulador de cf_clearance (Cloudflare anti-bot)
+    app.py
+    Dockerfile
+    requirements.txt
+    README.md
 tests/
   unit/           # Tests unitarios pytest (sin dependencias externas)
   integration/    # Tests de integración pytest (requieren DVWA activo)
@@ -89,8 +98,9 @@ Tras completar cualquier tarea:
 
 Cuando se cree o modifique una funcionalidad:
 
-1. `docker compose up -d dvwa db && docker compose build dast-app`
-2. `docker compose run --rm dast-app --url http://dvwa --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 --depth 3 --max-pages 100 --max-payloads-per-vector 50 --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect --request-timeout 30`
+1. `docker compose up -d dvwa-origin db && docker compose build dast-app`
+2. `docker compose run --rm dast-app --url http://dvwa-origin --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 --depth 3 --max-pages 100 --max-payloads-per-vector 50 --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect --request-timeout 30`
+   (usar `dvwa-origin` por defecto evita que el WAF enmascare regresiones de detección; para validar `--obfuscation` se usa `--url http://dvwa`)
 3. Revisar la salida en consola y los archivos en `reports/outputs/<scan_name>/`
 4. No dar la tarea por terminada hasta que la salida sea la esperada
 
@@ -166,14 +176,47 @@ pytest tests/unit/ --cov=src --cov-report=term-missing
 # Entorno Docker
 ./start.sh
 docker compose build dast-app
-docker compose run --rm dast-app --url http://dvwa \
+
+# Escaneo contra DVWA SIN WAF (baseline, v3-style)
+docker compose run --rm dast-app --url http://dvwa-origin \
     --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
     --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
     --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
     --request-timeout 30
+
+# Escaneo contra DVWA A TRAVÉS del WAF (valida --obfuscation, v4-style)
+docker compose run --rm dast-app --url http://dvwa \
+    --obfuscation none,double_url,base64 \
+    --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
+    --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+    --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+    --request-timeout 30
+
+# Escaneo contra el simulador cf_clearance (valida el bridge cookies + UA)
+docker compose run --rm dast-app --url http://dvwa-cf \
+    --cf-clearance-bridge \
+    --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+    --payload-types sqli,xss --request-timeout 30
+
 docker compose logs dast-app
 ./stop.sh
 ```
+
+---
+
+## Topología de targets
+
+El compose levanta tres targets equivalentes en contenido pero distintos
+en exposición, cada uno con su propio alias de red:
+
+- `dvwa-origin` — DVWA crudo, sin nada delante. Baseline.
+  `--url http://dvwa-origin` (puerto host 8080).
+- `dvwa` — alias del servicio `dvwa-waf`: Apache + ModSecurity v2 + OWASP
+  CRS (PARANOIA=1) delante de `dvwa-origin`. `--url http://dvwa` (puerto
+  host 8088). Se usa para validar `--obfuscation`.
+- `dvwa-cf` — alias del servicio `cf-sim`: simulador de `cf_clearance`
+  delante de `dvwa-origin`. `--url http://dvwa-cf` (puerto host 8089). Se
+  usa para validar el bridge Crawler→Fuzzer de cookies + User-Agent.
 
 ---
 
@@ -217,6 +260,19 @@ Cobertura / alcance:
   ante endpoints atascados; subirlo da margen a payloads time-based
   (SLEEP/BENCHMARK) para confirmarse.
   Acepta `unlimited` para eliminar el tope (solo recomendado al depurar payloads time-based).
+
+Anti-bot / sesión:
+
+- `--cf-clearance-bridge` / `--no-cf-clearance-bridge` (env
+  `CF_CLEARANCE_BRIDGE_ENABLED`, default `false`) — activa el **refresh
+  reactivo** de la cookie `cf_clearance`: cuando un upstream devuelve un
+  response con `X-Cf-Sim-Challenge: expired`/`missing`, el `HTTPClient`
+  relanza Playwright para renovar cookie + User-Agent y reintenta la
+  petición una vez. La **propagación** de cookies + UA del crawler al
+  fuzzer está siempre activa cuando `auth_enabled=true` (coste cero); el
+  flag solo controla el comportamiento de refresh-on-expiry. Necesario al
+  escanear targets detrás de un challenge tipo `cf_clearance` (p.ej. el
+  fixture `cf-sim`, alias de red `dvwa-cf`).
 
 **Convención `unlimited`:** los cuatro campos de cobertura (`max_depth`, `max_pages`,
 `max_payloads_per_vector`, `scanner_vector_timeout_seconds`) usan `int | None` internamente,

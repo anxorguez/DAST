@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — ModSecurity WAF in front of DVWA (Fase 1)
+
+- WAF en compose: nuevo servicio `dvwa-waf` (Apache + ModSecurity v2 +
+  OWASP CRS 4.x, PARANOIA=1) delante de DVWA, alias de red `dvwa`.
+- Directorio `infra/modsecurity/` con exclusiones para el flujo de auth.
+- README específico en `infra/modsecurity/README.md`.
+
+### Changed — WAF topology
+
+- Servicio `dvwa` renombrado a `dvwa-origin`. El alias `dvwa` apunta
+  ahora al WAF. Los escaneos baseline sin WAF usan `--url
+  http://dvwa-origin`.
+- `start.sh`: levanta `dvwa-waf` y espera health en puerto 8088.
+- `scan_profiles_v3.md` y `run_all_scans_v3.sh`: comandos actualizados a
+  `dvwa-origin` para mantener el contrato de baseline sin WAF.
+- `scan_profiles_v4_obfuscation.md` y `run_all_scans_v4.sh`: target
+  pivotado de `nginx-waf` a `dvwa` (que ahora es el WAF).
+- Lecturas esperadas de v4 referencian IDs del OWASP CRS en lugar de
+  reglas regex ad-hoc.
+
+### Removed
+
+- (Ya estaba quitado antes de este cambio: el servicio nginx-waf y el
+  directorio `infra/nginx-waf/` del experimento previo.)
+
+### Added — cf_clearance bridge (Fase 2)
+
+- Servicio `cf-sim`: simulador del contrato `cf_clearance` de Cloudflare,
+  alias de red `dvwa-cf`, expone puerto host 8089.
+- Flag CLI `--cf-clearance-bridge`: activa el refresh reactivo del
+  cookie cuando un upstream devuelve `X-Cf-Sim-Challenge` expired/missing.
+- HTTPClient: nuevo parámetro `user_agent` que se propaga desde el
+  Playwright BrowserContext. Previene el `ua_mismatch` que invalidaría
+  el cf_clearance.
+- Crawler: método público `refresh_session_async` para renovar cookies +
+  UA desde Playwright bajo demanda del HTTPClient.
+- Tests de integración en `tests/integration/test_cf_clearance_bridge.py`
+  y unitarios en `tests/unit/test_http_client_cf_clearance.py`.
+
+### Changed — cf_clearance bridge
+
+- HTTPClient acepta opcionalmente un callback de refresh; el header
+  `User-Agent` ahora se respeta cuando viene del crawler en lugar de
+  caer al default de httpx.
+- `Settings` gana el campo `cf_clearance_bridge_enabled` (env
+  `CF_CLEARANCE_BRIDGE_ENABLED`), incluido en el dump de Effective
+  Configuration del reporte.
+
 ### Added — Coverage knobs in the CLI and effective-config dump in the report
 
 - Four new CLI flags expose what used to be implicit defaults, giving the

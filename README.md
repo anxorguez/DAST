@@ -74,6 +74,33 @@ classes are detectable.
 
 To scan a different application, set TARGET_URL in your .env file before running.
 
+### Service topology
+
+The Compose environment exposes three equivalent targets in content but different in
+exposure, plus the scanner itself:
+
+| Service       | Internal alias | Host port | Purpose                                  |
+|---------------|----------------|-----------|------------------------------------------|
+| dvwa-origin   | dvwa-origin    | 8080      | Vulnerable target (no filtering)         |
+| dvwa-waf      | dvwa           | 8088      | DVWA + ModSecurity v2 + OWASP CRS PL=1   |
+| cf-sim        | dvwa-cf        | 8089      | cf_clearance challenge simulator         |
+| dast-app      | (n/a)          | (n/a)     | The DAST scanner (run as one-shot)       |
+
+`dvwa-origin` (host port 8080) is the clean instance of DVWA, useful as a baseline.
+`dvwa-waf` (host port 8088) is Apache + ModSecurity v2 with the OWASP Core Rule Set in
+front of `dvwa-origin`, and it takes the network alias `dvwa` — so any scan launched
+with `--url http://dvwa` transparently traverses the WAF. `cf-sim` (host port 8089)
+simulates a Cloudflare `cf_clearance` anti-bot challenge in front of `dvwa-origin`,
+under the alias `dvwa-cf`. WAF configuration and exclusions are documented in
+[`infra/modsecurity/README.md`](./infra/modsecurity/README.md); the simulator in
+[`infra/cf-sim/README.md`](./infra/cf-sim/README.md).
+
+| Scan command target            | Goes through                  | Use for                          |
+|---------------------------------|-------------------------------|----------------------------------|
+| `--url http://dvwa-origin`      | DVWA directly, nothing ahead  | Baseline (no WAF)                |
+| `--url http://dvwa`             | ModSecurity WAF               | Validating `--obfuscation`       |
+| `--url http://dvwa-cf`          | cf_clearance simulator        | Validating the cookie/UA bridge  |
+
 ---
 
 ## Architecture
@@ -126,6 +153,25 @@ URL target
    Output: ScanReport + files in reports/<scan_id>/
 ```
 
+### Anti-bot challenges (cf_clearance bridge)
+
+Some real-world targets sit behind an anti-bot layer such as Cloudflare, which issues
+a `cf_clearance` cookie only after a JavaScript challenge that a plain HTTP client
+cannot solve. The framework's crawler runs a real browser (Playwright) and *can* solve
+such challenges; the fuzzer uses `httpx` and cannot. The **cf_clearance bridge** closes
+that gap: the crawler captures both the session cookies *and* the `User-Agent` from its
+authenticated `BrowserContext`, and the pipeline propagates them to the `HTTPClient`
+the fuzzer builds. Propagating the `User-Agent` matters because the challenge cookie is
+bound to the UA that requested it — sending the fuzzer's default `httpx` UA would
+invalidate the clearance.
+
+With `--cf-clearance-bridge` enabled, the bridge also performs a **reactive refresh**:
+when an upstream answers a request with an `X-Cf-Sim-Challenge: expired`/`missing`
+marker, the `HTTPClient` re-launches Playwright to renew the cookie and UA, then
+retries the request once. The `cf-sim` service (see Service topology) is a local
+fixture that implements this contract for testing. Cookie + UA propagation is always
+on when authentication is enabled; the flag only controls the refresh-on-expiry path.
+
 ---
 
 ## Vulnerability Classes
@@ -172,18 +218,26 @@ cd dast-framework
 # 2. Copy the environment template
 cp .env.example .env
 
-# 3. Start DVWA and wait for it to be ready
+# 3. Start the backend, WAF and cf-sim, and wait for them to be ready
 ./start.sh
 
-# 4. Run a scan against DVWA with the default tuning parameters
-docker compose run --rm dast-app --url http://dvwa \
+# 4a. Baseline scan against DVWA WITHOUT the WAF (v3-style)
+docker compose run --rm dast-app --url http://dvwa-origin \
     --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
     --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
     --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
     --request-timeout 30
 
-# 5. Find your report in ./reports/<scan_id>/
-ls reports/
+# 4b. Scan against DVWA THROUGH the ModSecurity WAF, exercising --obfuscation
+docker compose run --rm dast-app --url http://dvwa \
+    --obfuscation none,double_url,base64 \
+    --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
+    --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
+    --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
+    --request-timeout 30
+
+# 5. Find your report in ./reports/outputs/<scan_id>/
+ls reports/outputs/
 ```
 
 ---
@@ -213,6 +267,7 @@ All settings are read from environment variables (.env file or shell environment
 | CONCURRENT_VECTORS        | 5                                            | Number of vectors fuzzed concurrently               |
 | CONCURRENT_PAYLOADS       | 10                                           | Payloads tested in parallel per scanner             |
 | REQUESTS_PER_SECOND       | 0                                            | Rate limit (0 = unlimited)                          |
+| CF_CLEARANCE_BRIDGE_ENABLED | false                                      | Reactive refresh of the cf_clearance cookie via Playwright |
 | DVWA_SECURITY_LEVEL       | low                                          | DVWA security level for integration tests           |
 | DVWA_USERNAME             | admin                                        | DVWA login username                                 |
 | DVWA_PASSWORD             | password                                     | DVWA login password                                 |
