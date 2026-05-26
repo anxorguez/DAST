@@ -38,6 +38,8 @@ services:
       - AUTH_USERNAME_FIELD
       - AUTH_PASSWORD_FIELD
       - AUTH_SUCCESS_URL
+      # cf_clearance bridge — only takes effect when set on the host
+      - CF_CLEARANCE_BRIDGE_ENABLED
       # DVWA test fixture (consumed by integration helpers, not the scanner)
       - DVWA_SECURITY_LEVEL
       - DVWA_USERNAME
@@ -52,9 +54,13 @@ services:
     # compose-run time because the user may target a different application.
 
   # --------------------------------------------------------------------------
-  # dvwa: Damn Vulnerable Web Application — default scan target.
+  # dvwa-origin: Damn Vulnerable Web Application — the real backend, with no
+  # filtering in front of it.  Reachable directly as `http://dvwa-origin`
+  # (host port 8080) for baseline scans without a WAF.  The network alias
+  # list is given in long form so it is explicit that `dvwa-origin` does NOT
+  # answer to the `dvwa` name anymore — that name belongs to dvwa-waf.
   # --------------------------------------------------------------------------
-  dvwa:
+  dvwa-origin:
     image: ghcr.io/digininja/dvwa:latest
     ports:
       - "8080:80"
@@ -67,7 +73,9 @@ services:
       RECAPTCHA_PRIV_KEY: ""
       RECAPTCHA_PUB_KEY:  ""
     networks:
-      - dast-network
+      dast-network:
+        aliases:
+          - dvwa-origin
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +85,88 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  # --------------------------------------------------------------------------
+  # dvwa-waf: Apache + ModSecurity v2 + OWASP Core Rule Set delante de
+  # dvwa-origin.  Toma el alias de red `dvwa` para que --url http://dvwa
+  # llegue al WAF en lugar del backend, sin que ningún script ni el .env
+  # tengan que cambiar de host.  El backend real queda accesible como
+  # http://dvwa-origin para baselines "sin WAF".
+  # --------------------------------------------------------------------------
+  dvwa-waf:
+    image: owasp/modsecurity-crs:apache
+    # La imagen `owasp/modsecurity-crs:apache` corre como usuario no privilegiado
+    # (`www-data`, UID 33) y su entrypoint REHÚSA explícitamente puertos < 1024
+    # (chequeo en el propio script de arranque — no es un binding error del
+    # kernel). Por eso el contenedor escucha en 8080 internamente, y los `--url`
+    # del fuzzer contra el WAF deben usar `http://dvwa:8080` explícitamente.
+    ports:
+      - "8088:8080"
+    environment:
+      BACKEND: "http://dvwa-origin:80"
+      SERVER_NAME: "dvwa"
+      PARANOIA: "1"
+      ANOMALY_INBOUND: "5"
+      ANOMALY_OUTBOUND: "4"
+      # Permitir el flujo de auth de DVWA sin falsos positivos del CRS.
+      MODSEC_RULE_ENGINE: "On"
+      MODSEC_REQ_BODY_ACCESS: "On"
+      MODSEC_REQ_BODY_LIMIT: "13107200"
+      MODSEC_REQ_BODY_NOFILES_LIMIT: "131072"
+    volumes:
+      - ./infra/modsecurity/exclusions.conf:/etc/modsecurity.d/exclusions.conf:ro
+    networks:
+      dast-network:
+        aliases:
+          - dvwa
+          - dvwa-waf
+    depends_on:
+      dvwa-origin:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # --------------------------------------------------------------------------
+  # cf-sim: Cloudflare cf_clearance simulator delante de dvwa-origin.
+  # Toma el alias de red `dvwa-cf`.  Sirve para validar el bridge
+  # Crawler→Fuzzer que propaga cookies + UA entre Playwright y httpx.
+  # No imita TLS fingerprinting ni Bot Management — solo el contrato
+  # mínimo de cf_clearance.
+  # --------------------------------------------------------------------------
+  cf-sim:
+    build:
+      context: ./infra/cf-sim
+      dockerfile: Dockerfile
+    image: cf-sim:latest
+    ports:
+      - "8089:80"
+    environment:
+      BACKEND: "http://dvwa-origin:80"
+      CLEARANCE_TTL_SECONDS: "1800"
+    networks:
+      dast-network:
+        aliases:
+          - dvwa-cf
+          - cf-sim
+    depends_on:
+      dvwa-origin:
+        condition: service_healthy
+    # python:3.12-slim ships no wget/curl, so the healthcheck uses the
+    # interpreter that is guaranteed to be present.
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:80/cdn-cgi/challenge-page').status==200 else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
   # --------------------------------------------------------------------------
   # db: MariaDB database required by DVWA.
