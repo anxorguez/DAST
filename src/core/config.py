@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,6 +61,17 @@ class Settings(BaseSettings):
     auth_username_field: str = "username"
     auth_password_field: str = "password"
     auth_success_url: str = ""
+
+    # --- Anti-bot / session bridge ------------------------------------
+    cf_clearance_bridge_enabled: bool = Field(
+        default=False,
+        description=(
+            "Enable reactive refresh of cf_clearance cookie via Playwright when "
+            "an upstream returns X-Cf-Sim-Challenge: expired/missing. The "
+            "User-Agent and cookies are propagated from the crawler to the fuzzer "
+            "either way; this flag only controls the refresh-on-expiry behaviour."
+        ),
+    )
 
     # --- Fuzzing ------------------------------------------------------
     payload_types: str = "sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect"
