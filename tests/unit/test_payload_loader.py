@@ -96,3 +96,38 @@ class TestPayloadLoader:
         assert idx_boolean < idx_time, "boolean must precede time-based"
         assert idx_error < idx_time, "error-based must precede time-based"
         assert idx_union < idx_time, "UNION-based must precede time-based"
+
+    def test_cmdi_error_based_loaded_before_time_based(self) -> None:
+        """CMDi payloads must be returned error-first: unix/windows precede blind.
+
+        Regression for the cf-sim CMDi timeout: blind.txt (sleep/ping -c)
+        serializes ~5 s per payload and exhausts scanner_vector_timeout. With
+        error-based payloads (unix/windows) loaded first, a bounded
+        max_payloads_per_vector budget never reaches the time-based ones.
+        """
+        all_payloads = self.loader.load(VulnType.CMDI, max_count=500)
+
+        unix = self.loader.load_subtype(VulnType.CMDI, "unix", max_count=500)
+        windows = self.loader.load_subtype(VulnType.CMDI, "windows", max_count=500)
+        blind = self.loader.load_subtype(VulnType.CMDI, "blind", max_count=500)
+
+        def first_index_of(subset: list[str]) -> int:
+            for i, p in enumerate(all_payloads):
+                if p in subset:
+                    return i
+            return len(all_payloads)
+
+        idx_blind = first_index_of(blind)
+        assert first_index_of(unix) < idx_blind, "unix (error-based) must precede blind"
+        assert first_index_of(windows) < idx_blind, "windows (error-based) must precede blind"
+
+    def test_cmdi_small_budget_excludes_blind(self) -> None:
+        """With max_count=20 the budget is covered by unix.txt alone; no
+        time-based (blind.txt) payloads are returned."""
+        payloads = self.loader.load(VulnType.CMDI, max_count=20)
+        blind = set(self.loader.load_subtype(VulnType.CMDI, "blind", max_count=500))
+        unix = set(self.loader.load_subtype(VulnType.CMDI, "unix", max_count=500))
+
+        assert len(payloads) == 20
+        assert all(p in unix for p in payloads), "all payloads must come from unix.txt"
+        assert not any(p in blind for p in payloads), "no blind (time-based) payloads"

@@ -34,6 +34,11 @@ _VULN_DIR: dict[VulnType, str] = {
 # ``/sqli/[id]`` and ``/brute/[username]`` never got attempted.
 _SUBTYPE_ORDER: dict[VulnType, tuple[str, ...]] = {
     VulnType.SQLI: ("blind_boolean", "error_based", "union_based", "time_based"),
+    # CMDi: error-based first (unix/windows echo markers, immediate response),
+    # time-based (blind.txt: sleep/ping -c) last.  Against cf-sim the blind
+    # payloads serialize ~5 s each and exhaust scanner_vector_timeout; ordering
+    # them last means a small max_payloads_per_vector budget never reaches them.
+    VulnType.CMDI: ("unix", "windows", "blind"),
 }
 
 

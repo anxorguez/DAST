@@ -9,6 +9,7 @@ from typing import Any
 from loguru import logger
 
 from src.analysis.models import RawFinding, ScanHealth
+from src.core.blocked_tracker import BlockedResponseTracker
 from src.core.config import Settings
 from src.core.http_client import HTTPClient
 from src.core.rate_limiter import GlobalRateLimiter
@@ -72,6 +73,11 @@ class Fuzzer:
         # early-abort because every payload returned a network error.
         self.health: ScanHealth = ScanHealth()
         self._health_lock = asyncio.Lock()
+        # Counts 403 responses by protection layer (waf_crs / cf_clearance /
+        # unknown_403).  Wired into the single HTTPClient built in ``run`` so
+        # all scanners share the same aggregator.  Read into ``self.health``
+        # after the gather() completes so it is observable from the pipeline.
+        self._blocked_tracker = BlockedResponseTracker()
 
     async def run(self, vectors: list[AttackVector]) -> list[RawFinding]:
         """Fuzz all *vectors* concurrently and return confirmed raw findings.
@@ -91,12 +97,17 @@ class Fuzzer:
             session_cookies=self._session_cookies,
             user_agent=self._session_user_agent,
             cf_clearance_refresh_callback=self._cf_clearance_refresh_callback,
+            blocked_tracker=self._blocked_tracker,
         ) as http_client:
             tasks = [
                 asyncio.create_task(self._fuzz_vector(vector_sem, vector, http_client))
                 for vector in vectors
             ]
             batches = await asyncio.gather(*tasks)
+
+        # Surface the 403-by-layer breakdown on ``health`` so the report
+        # generator can include it under ``summary.scanner_health``.
+        self.health.blocked_by_layer = self._blocked_tracker.counts
 
         all_findings = [f for batch in batches for f in batch]
 

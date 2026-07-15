@@ -72,7 +72,7 @@ class SQLiScanner(BaseScanner):
     """Detects SQL Injection using error-based, time-based, and UNION-based techniques."""
 
     VULN_TYPE = VulnType.SQLI
-    SUPPORTED_ENCODINGS = ("none", "url", "double_url")
+    SUPPORTED_ENCODINGS = ("none", "url", "double_url", "sql_comment")
 
     def __init__(
         self,

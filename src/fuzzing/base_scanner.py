@@ -318,8 +318,9 @@ class BaseScanner(ABC):
         """Send an HTTP request with *payload* injected into *vector*.
 
         The ``encoding`` parameter selects an optional obfuscation transform.
-        For ``none`` and ``base64`` we go through the normal httpx params/data
-        path (httpx percent-encodes the value as usual).  For ``url`` and
+        For ``none``, ``base64`` and ``sql_comment`` we go through the normal
+        httpx params/data path (httpx percent-encodes the value as usual, and
+        PHP decodes ``/**/`` back before it reaches MySQL).  For ``url`` and
         ``double_url`` we MUST bypass httpx auto-encoding and build the query
         string / form body manually, otherwise ``url`` becomes ``double_url`` on
         the wire and ``double_url`` becomes triple-encoded.
@@ -336,7 +337,11 @@ class BaseScanner(ABC):
         encoded_payload = obfuscators.apply(encoding, payload)
         start = time.monotonic()
         try:
-            if encoding in (obfuscators.ENCODING_NONE, obfuscators.ENCODING_BASE64):
+            if encoding in (
+                obfuscators.ENCODING_NONE,
+                obfuscators.ENCODING_BASE64,
+                obfuscators.ENCODING_SQL_COMMENT,
+            ):
                 params = {**vector.extra_params, vector.field_name: encoded_payload}
                 if vector.method == "POST":
                     if no_retry:
