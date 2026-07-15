@@ -310,19 +310,27 @@ class VectorAnalyzer:
         vulns: list[VulnType] = [VulnType.SQLI, VulnType.XSS]
 
         # Hidden fields carry no visual output, so XSS is not meaningful.
-        if field_type == "hidden":
+        is_hidden = field_type == "hidden"
+        if is_hidden:
             vulns = [VulnType.SQLI]
+
+        # CMDi/SSRF/Path Traversal are gated on user-controlled inputs.  A
+        # hidden field that happens to match a name heuristic (e.g. DVWA's
+        # ``MAX_FILE_SIZE`` matching the ``file`` CMDi hint) is a structural
+        # false positive — the server treats it as an opaque limit, not a
+        # command/URL/path sink — so hidden fields are excluded from all three.
+
         # Add CMDi only when field name hints at OS-level execution.
-        if any(kw in lower for kw in _CMDI_HINT_NAMES):
+        if not is_hidden and any(kw in lower for kw in _CMDI_HINT_NAMES):
             if VulnType.CMDI not in vulns:
                 vulns.append(VulnType.CMDI)
 
         # SSRF: field name suggests URL/endpoint input.
-        if any(kw in lower for kw in _SSRF_HINT_NAMES):
+        if not is_hidden and any(kw in lower for kw in _SSRF_HINT_NAMES):
             vulns.append(VulnType.SSRF)
 
         # Path Traversal: field name suggests file/path input.
-        if any(kw in lower for kw in _PATH_TRAVERSAL_HINT_NAMES):
+        if not is_hidden and any(kw in lower for kw in _PATH_TRAVERSAL_HINT_NAMES):
             if VulnType.PATH_TRAVERSAL not in vulns:
                 vulns.append(VulnType.PATH_TRAVERSAL)
 

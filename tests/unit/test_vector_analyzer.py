@@ -119,6 +119,30 @@ class TestVectorAnalyzer:
         assert id_vectors
         assert id_vectors[0].applicable_vulns == [VulnType.SQLI]
 
+    def test_hidden_max_file_size_not_cmdi(self) -> None:
+        """A hidden MAX_FILE_SIZE field must not become a CMDi vector.
+
+        DVWA's file-upload form carries ``<input type="hidden"
+        name="MAX_FILE_SIZE">``.  Its name matches the ``file`` CMDi hint, but
+        it is a structural false positive: the server treats it as an opaque
+        size limit, not a command sink.  Routing it to the CMDi scanner fed
+        time-based (sleep/ping) payloads through cf-sim and blew the
+        scanner-vector timeout.
+        """
+        form = _make_form(
+            "http://localhost/upload",
+            "POST",
+            [FormField(name="MAX_FILE_SIZE", field_type="hidden", default_value="100000")],
+        )
+        page = _make_page("http://localhost/upload", [form])
+        vectors = self.analyzer.analyze([page])
+        mfs_vectors = [v for v in vectors if v.field_name == "MAX_FILE_SIZE"]
+        assert mfs_vectors
+        assert VulnType.CMDI not in mfs_vectors[0].applicable_vulns
+        assert VulnType.SSRF not in mfs_vectors[0].applicable_vulns
+        assert VulnType.PATH_TRAVERSAL not in mfs_vectors[0].applicable_vulns
+        assert mfs_vectors[0].applicable_vulns == [VulnType.SQLI]
+
     def test_url_params_extracted(self) -> None:
         page = _make_page("http://localhost/search?q=hello&page=1", [])
         vectors = self.analyzer.analyze([page])
