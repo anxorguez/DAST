@@ -63,13 +63,15 @@ class Settings(BaseSettings):
     auth_success_url: str = ""
 
     # --- Anti-bot / session bridge ------------------------------------
-    cf_clearance_bridge_enabled: bool = Field(
-        default=False,
+    cf_clearance_mode: str = Field(
+        default="off",
         description=(
-            "Enable reactive refresh of cf_clearance cookie via Playwright when "
-            "an upstream returns X-Cf-Sim-Challenge: expired/missing. The "
-            "User-Agent and cookies are propagated from the crawler to the fuzzer "
-            "either way; this flag only controls the refresh-on-expiry behaviour."
+            "cf_clearance bridge mode. "
+            "'off': no cookies propagated, fuzzer works without session (receives 403 on all "
+            "requests against cf-protected targets). "
+            "'propagate': cookies + UA propagated from crawler to fuzzer but no reactive refresh. "
+            "'refresh': cookies + UA propagated AND reactive Playwright refresh on "
+            "X-Cf-Sim-Challenge expired/missing responses (default active bridge behaviour)."
         ),
     )
 
@@ -79,7 +81,7 @@ class Settings(BaseSettings):
     # encodings make sense for its vuln class via SUPPORTED_ENCODINGS; the
     # effective list per scanner is the intersection of this setting and that
     # tuple.  An empty intersection falls back to ``"none"`` so the scanner still
-    # runs.  Valid values: none, url, double_url, base64.  See
+    # runs.  Valid values: none, url, double_url, base64, sql_comment.  See
     # src/fuzzing/obfuscators.py for the full catalogue.
     obfuscation: str = "none"
     max_payloads_per_vector: int | None = 50
@@ -112,6 +114,15 @@ class Settings(BaseSettings):
         s = str(v).upper()
         if s not in valid:
             raise ValueError(f"log_level must be one of {valid}, got '{v}'")
+        return s
+
+    @field_validator("cf_clearance_mode", mode="before")
+    @classmethod
+    def _validate_cf_clearance_mode(cls, v: object) -> str:
+        valid = {"off", "propagate", "refresh"}
+        s = str(v).lower().strip()
+        if s not in valid:
+            raise ValueError(f"cf_clearance_mode must be one of {valid}, got '{v}'")
         return s
 
     @field_validator("obfuscation", mode="before")

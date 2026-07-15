@@ -74,18 +74,26 @@ class Pipeline:
         # ``--requests-per-second`` controls the *combined* outbound rate
         # rather than the per-scanner rate.
         rate_limiter = get_rate_limiter(self._settings.requests_per_second)
-        # cf_clearance bridge: the User-Agent and cookies are always
-        # propagated from the crawler to the fuzzer; the refresh callback is
-        # only wired when --cf-clearance-bridge is enabled, since that is the
-        # part that re-launches Playwright on a challenge response.
-        refresh_cb = (
-            crawler.refresh_session_async if self._settings.cf_clearance_bridge_enabled else None
-        )
+        # cf_clearance bridge:
+        #   "off"       — no session propagation; fuzzer runs without cookies
+        #                 and will receive 403 on every request to a
+        #                 cf-protected target.
+        #   "propagate" — cookies + UA from the crawler reach the fuzzer but
+        #                 there is no reactive refresh (works while the
+        #                 cookie TTL is not exceeded).
+        #   "refresh"   — full bridge: cookies + UA propagated AND the
+        #                 session is renewed via Playwright whenever the
+        #                 upstream signals expiry.
+        mode = self._settings.cf_clearance_mode
+        session_cookies = [] if mode == "off" else crawler.session_cookies
+        session_user_agent = None if mode == "off" else crawler.session_user_agent
+        refresh_cb = crawler.refresh_session_async if mode == "refresh" else None
+
         fuzzer = Fuzzer(
             self._settings,
-            session_cookies=crawler.session_cookies,
+            session_cookies=session_cookies,
             rate_limiter=rate_limiter,
-            session_user_agent=crawler.session_user_agent,
+            session_user_agent=session_user_agent,
             cf_clearance_refresh_callback=refresh_cb,
         )
         raw_findings = await fuzzer.run(vectors)

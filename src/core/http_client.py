@@ -19,6 +19,8 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from src.core.blocked_tracker import BlockedResponseTracker
+
 # Default User-Agent sent when the caller does not propagate one from the
 # crawler's BrowserContext.
 _DEFAULT_USER_AGENT = "DAST-Framework/0.1 (security-testing)"
@@ -116,6 +118,7 @@ class HTTPClient:
         session_cookies: list[dict[str, Any]] | None = None,
         user_agent: str | None = None,
         cf_clearance_refresh_callback: Callable[[], Awaitable[dict[str, Any]]] | None = None,
+        blocked_tracker: BlockedResponseTracker | None = None,
     ) -> None:
         self._timeout = timeout
         # ``max_retries`` is the *total* number of attempts.  1 means no retry.
@@ -123,6 +126,7 @@ class HTTPClient:
         self._session_cookies = session_cookies or []
         self._user_agent = user_agent
         self._cf_clearance_refresh_callback = cf_clearance_refresh_callback
+        self._blocked_tracker = blocked_tracker
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> HTTPClient:
@@ -233,6 +237,8 @@ class HTTPClient:
         further refresh, so a still-failing target cannot cause a loop.
         """
         response: httpx.Response = await send()
+        if self._blocked_tracker is not None:
+            await self._blocked_tracker.record(response)
 
         if self._cf_clearance_refresh_callback is None:
             return response
@@ -247,7 +253,10 @@ class HTTPClient:
         )
         await self._refresh_session()
         # Retry exactly once; whatever comes back is returned to the caller.
-        return await send()  # type: ignore[no-any-return]
+        retry_response: httpx.Response = await send()
+        if self._blocked_tracker is not None:
+            await self._blocked_tracker.record(retry_response)
+        return retry_response
 
     async def _refresh_session(self) -> None:
         """Invoke the refresh callback and apply the renewed cookies + UA.

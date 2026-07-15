@@ -269,15 +269,18 @@ def _move_log_to_debug(scan_dir: Path, output_base: Path) -> Path | None:
 )
 # --- Anti-bot / session bridge ----------------------------------------------
 @click.option(
-    "--cf-clearance-bridge/--no-cf-clearance-bridge",
-    "cf_clearance_bridge",
+    "--cf-clearance-mode",
+    "cf_clearance_mode",
     default=None,
-    envvar="CF_CLEARANCE_BRIDGE_ENABLED",
+    type=click.Choice(["off", "propagate", "refresh"], case_sensitive=False),
+    envvar="CF_CLEARANCE_MODE",
     help=(
-        "Enable reactive cf_clearance refresh: when an upstream returns a "
-        "challenge-page 403, re-launch Playwright to renew the session "
-        "cookie and User-Agent. Default (off) still propagates the initial "
-        "cookies and UA from the crawler to the fuzzer."
+        "cf_clearance bridge mode. "
+        "'off' (default): no cookie propagation — fuzzer receives 403 on all "
+        "requests to cf-protected targets. "
+        "'propagate': cookies + UA from crawler reach the fuzzer but no reactive refresh. "
+        "'refresh': cookies + UA propagated AND Playwright relaunched when the upstream "
+        "returns X-Cf-Sim-Challenge: expired/missing."
     ),
 )
 # --- Output / logging --------------------------------------------------------
@@ -318,7 +321,7 @@ def main(
     obfuscation: str,
     request_timeout: int,
     scanner_vector_timeout: int | None,
-    cf_clearance_bridge: bool | None,
+    cf_clearance_mode: str | None,
     output: str | None,
     output_base: str | None,
     log_level: str | None,
@@ -344,8 +347,8 @@ def main(
         "obfuscation": obfuscation,
         "request_timeout": request_timeout,
     }
-    if cf_clearance_bridge is not None:
-        overrides["cf_clearance_bridge_enabled"] = cf_clearance_bridge
+    if cf_clearance_mode is not None:
+        overrides["cf_clearance_mode"] = cf_clearance_mode
     if output:
         overrides["scan_name"] = output
     if output_base:
