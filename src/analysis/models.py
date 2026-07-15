@@ -94,6 +94,11 @@ class ScanHealth:
     vector_timeouts: int = 0
     early_aborts: int = 0
     scanners_with_zero_valid_responses: int = 0
+    # Per-layer breakdown of 403 responses (WAF/CRS vs cf_clearance vs generic).
+    # Populated by HTTPClient via BlockedResponseTracker.
+    blocked_by_layer: dict[str, int] = field(
+        default_factory=lambda: {"waf_crs": 0, "cf_clearance": 0, "unknown_403": 0}
+    )
 
     @property
     def completion_rate_pct(self) -> float:
@@ -111,6 +116,7 @@ class ScanHealth:
             "early_aborts": self.early_aborts,
             "scanners_with_zero_valid_responses": self.scanners_with_zero_valid_responses,
             "completion_rate_pct": self.completion_rate_pct,
+            "blocked_responses_by_layer": dict(self.blocked_by_layer),
         }
 
 
