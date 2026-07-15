@@ -39,7 +39,7 @@ services:
       - AUTH_PASSWORD_FIELD
       - AUTH_SUCCESS_URL
       # cf_clearance bridge — only takes effect when set on the host
-      - CF_CLEARANCE_BRIDGE_ENABLED
+      - CF_CLEARANCE_MODE
       # DVWA test fixture (consumed by integration helpers, not the scanner)
       - DVWA_SECURITY_LEVEL
       - DVWA_USERNAME

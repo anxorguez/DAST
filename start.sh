@@ -183,7 +183,7 @@ To exercise the obfuscation layer against the WAF:
 To exercise the cf_clearance bridge against the simulator:
 
     docker compose run --rm dast-app --url http://dvwa-cf \
-        --cf-clearance-bridge \
+        --cf-clearance-mode refresh \
         --concurrent-vectors 5 --concurrent-payloads 10 \
         --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
         --payload-types sqli,xss \

@@ -43,8 +43,10 @@ Es la API del simulador hacia el `HTTPClient` del DAST. Valores posibles:
   `Set-Cookie: cf_clearance=...` y un 302 al path original. Todo fluye
   automáticamente.
 - **Desde `httpx` a pelo:** sin bridge → 403 permanente (httpx no ejecuta
-  JS). Con el bridge activado (`--cf-clearance-bridge`), el `HTTPClient`
-  relanza Playwright para renovar la cookie cuando ve `expired`/`missing`.
+  JS). Con `--cf-clearance-mode=refresh`, el `HTTPClient` relanza Playwright
+  para renovar la cookie cuando ve `expired`/`missing`; con `propagate` se
+  reusa la cookie inicial sin refresh; con `off` el fuzzer corre sin sesión
+  y recibe 403 en todas las requests.
 
 ## Configuración (env vars)
 
