@@ -165,12 +165,18 @@ the fuzzer builds. Propagating the `User-Agent` matters because the challenge co
 bound to the UA that requested it — sending the fuzzer's default `httpx` UA would
 invalidate the clearance.
 
-With `--cf-clearance-bridge` enabled, the bridge also performs a **reactive refresh**:
-when an upstream answers a request with an `X-Cf-Sim-Challenge: expired`/`missing`
-marker, the `HTTPClient` re-launches Playwright to renew the cookie and UA, then
-retries the request once. The `cf-sim` service (see Service topology) is a local
-fixture that implements this contract for testing. Cookie + UA propagation is always
-on when authentication is enabled; the flag only controls the refresh-on-expiry path.
+The behaviour is selected with `--cf-clearance-mode` (or `CF_CLEARANCE_MODE`):
+
+- `off` (default): no cookie or UA propagation — the fuzzer runs with its own
+  session and will receive 403 on every request to a cf-protected target.
+- `propagate`: the crawler's cookies and User-Agent are pushed to the fuzzer's
+  `HTTPClient`, but no reactive refresh is performed.
+- `refresh`: propagation **plus** a reactive refresh — when an upstream answers
+  with `X-Cf-Sim-Challenge: expired`/`missing`, the `HTTPClient` re-launches
+  Playwright to renew the cookie and UA, then retries the request once.
+
+The `cf-sim` service (see Service topology) is a local fixture that implements
+this contract for testing.
 
 ---
 
@@ -267,7 +273,7 @@ All settings are read from environment variables (.env file or shell environment
 | CONCURRENT_VECTORS        | 5                                            | Number of vectors fuzzed concurrently               |
 | CONCURRENT_PAYLOADS       | 10                                           | Payloads tested in parallel per scanner             |
 | REQUESTS_PER_SECOND       | 0                                            | Rate limit (0 = unlimited)                          |
-| CF_CLEARANCE_BRIDGE_ENABLED | false                                      | Reactive refresh of the cf_clearance cookie via Playwright |
+| CF_CLEARANCE_MODE         | off                                          | cf_clearance bridge mode: off / propagate / refresh |
 | DVWA_SECURITY_LEVEL       | low                                          | DVWA security level for integration tests           |
 | DVWA_USERNAME             | admin                                        | DVWA login username                                 |
 | DVWA_PASSWORD             | password                                     | DVWA login password                                 |

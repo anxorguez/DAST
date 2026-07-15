@@ -194,7 +194,7 @@ docker compose run --rm dast-app --url http://dvwa \
 
 # Escaneo contra el simulador cf_clearance (valida el bridge cookies + UA)
 docker compose run --rm dast-app --url http://dvwa-cf \
-    --cf-clearance-bridge \
+    --cf-clearance-mode refresh \
     --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
     --payload-types sqli,xss --request-timeout 30
 
@@ -217,6 +217,27 @@ en exposición, cada uno con su propio alias de red:
 - `dvwa-cf` — alias del servicio `cf-sim`: simulador de `cf_clearance`
   delante de `dvwa-origin`. `--url http://dvwa-cf` (puerto host 8089). Se
   usa para validar el bridge Crawler→Fuzzer de cookies + User-Agent.
+
+### URLs canónicas por target
+
+| Alias | URL canónica para `--url` | Puerto interno | Notas |
+|-------|--------------------------|---------------|-------|
+| `dvwa-origin` | `http://dvwa-origin` | 80 | DVWA puro, sin protección. |
+| `dvwa` (WAF) | `http://dvwa:8080` | 8080 | ModSecurity rehúsa puertos < 1024; usar `:8080` explícito. |
+| `dvwa-cf` | `http://dvwa-cf` | 80 | uvicorn corre como root en el simulador; puerto 80 OK. |
+
+**Por qué `dvwa:8080` y no `dvwa:80`:** la imagen `owasp/modsecurity-crs:apache`
+corre como usuario no privilegiado (`www-data`, UID 33). Su entrypoint rechaza
+puertos < 1024 explícitamente. Intentar `http://dvwa` (sin puerto) da
+`ERR_CONNECTION_REFUSED` porque el contenedor solo escucha en 8080.
+
+### `--cf-clearance-mode` recomendado por target
+
+| Target | Modo recomendado | Razón |
+|--------|-----------------|-------|
+| `dvwa-origin` | `off` (o no pasar el flag) | Sin protección; las cookies del crawler son cookies de sesión DVWA normales que se propagan igual sin el flag. |
+| `dvwa` (WAF) | `off` (o no pasar el flag) | El WAF no valida cf_clearance. |
+| `dvwa-cf` | `--cf-clearance-mode=refresh` | Necesario para que el fuzzer atraviese el simulador y se recupere de expiraciones. |
 
 ---
 
@@ -263,16 +284,17 @@ Cobertura / alcance:
 
 Anti-bot / sesión:
 
-- `--cf-clearance-bridge` / `--no-cf-clearance-bridge` (env
-  `CF_CLEARANCE_BRIDGE_ENABLED`, default `false`) — activa el **refresh
-  reactivo** de la cookie `cf_clearance`: cuando un upstream devuelve un
-  response con `X-Cf-Sim-Challenge: expired`/`missing`, el `HTTPClient`
-  relanza Playwright para renovar cookie + User-Agent y reintenta la
-  petición una vez. La **propagación** de cookies + UA del crawler al
-  fuzzer está siempre activa cuando `auth_enabled=true` (coste cero); el
-  flag solo controla el comportamiento de refresh-on-expiry. Necesario al
-  escanear targets detrás de un challenge tipo `cf_clearance` (p.ej. el
-  fixture `cf-sim`, alias de red `dvwa-cf`).
+- `--cf-clearance-mode` (env `CF_CLEARANCE_MODE`, default `off`) — controla el bridge
+  Crawler→Fuzzer para targets protegidos por cf_clearance:
+  - `off`: el fuzzer NO recibe cookies del crawler. Cualquier request a un target
+    cf-protegido devuelve 403. Usar para verificar que el simulador bloquea realmente.
+  - `propagate`: cookies + UA del crawler se propagan al fuzzer, pero no hay refresh
+    reactivo. Funciona para escaneos cuya duración sea menor que la TTL de la cookie
+    (default 30 min en cf-sim). El invariante `findings ≈ refresh` se cumple en
+    escaneos cortos.
+  - `refresh`: propagación + refresh reactivo vía Playwright cuando el upstream
+    devuelve `X-Cf-Sim-Challenge: expired/missing`. Necesario para escaneos largos
+    (> 30 min). Añade ~10-15 s de overhead por refresh (reboot de Chromium).
 
 **Convención `unlimited`:** los cuatro campos de cobertura (`max_depth`, `max_pages`,
 `max_payloads_per_vector`, `scanner_vector_timeout_seconds`) usan `int | None` internamente,
@@ -301,6 +323,28 @@ que el analista pueda decidir si subir `--max-pages` / `--depth`.
 - Tráfico saliente del contenedor limitado por `entrypoint.sh` vía iptables
 - No usar `shell=True` en subprocess
 - Credenciales solo en `.env`, nunca commiteadas
+
+
+## Convención de exit codes del DAST
+
+| Exit code | Significado |
+|-----------|-------------|
+| `0` | Scan completado, **0 findings críticos**. |
+| `1` | Scan completado, **≥1 finding crítico** encontrado. Esto es SUCCESS para el orquestador — no indica error. |
+| `≥ 2` | Error de orquestación: crash, OOM, fallo de auth, timeout de inicio, argumento inválido, etc. |
+
+Scripts que orquesten el DAST deben tratar `exit 0` y `exit 1` como éxito del
+proceso. Solo `exit ≥ 2` indica que el scan no completó.
+
+En bash:
+```bash
+docker compose run --rm dast-app ... ; ec=$?
+if [ $ec -ge 2 ]; then
+  echo "SCAN FAILED (exit $ec)" >&2
+  exit 1
+fi
+# exit 0 o 1 → el scan terminó; los findings están en report.json
+```
 
 
 ## Prototipos de Commits Después de Cada Tarea
