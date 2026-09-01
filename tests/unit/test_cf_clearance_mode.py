@@ -59,9 +59,9 @@ def test_cf_clearance_mode_rejects_unknown_value() -> None:
         Settings(target_url="http://example.invalid", cf_clearance_mode="bridge")
 
 
-def test_cf_clearance_mode_defaults_to_off() -> None:
+def test_cf_clearance_mode_defaults_to_propagate() -> None:
     settings = Settings(target_url="http://example.invalid")
-    assert settings.cf_clearance_mode == "off"
+    assert settings.cf_clearance_mode == "propagate"
 
 
 # ---------------------------------------------------------------------------

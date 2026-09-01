@@ -166,10 +166,11 @@ invalidaría la clearance.
 
 El comportamiento se selecciona con `--cf-clearance-mode` (o `CF_CLEARANCE_MODE`):
 
-- `off` (por defecto): sin propagación de cookie ni UA — el fuzzer usa su propia sesión y
-  recibirá 403 en cada petición a un objetivo protegido por cf.
-- `propagate`: las cookies y el User-Agent del crawler se empujan al `HTTPClient` del fuzzer,
-  pero sin refresco reactivo.
+- `off`: sin propagación de cookie ni UA — el fuzzer usa su propia sesión y recibirá 403 en
+  cada petición a un objetivo protegido por cf (modo explícito, útil para demostrar el bloqueo).
+- `propagate` (por defecto): las cookies y el User-Agent del crawler se empujan al `HTTPClient`
+  del fuzzer, pero sin refresco reactivo. Es lo que permite que un escaneo autenticado (p. ej.
+  DVWA tras login) alcance las páginas protegidas.
 - `refresh`: propagación **más** refresco reactivo — cuando un upstream responde con
   `X-Cf-Sim-Challenge: expired`/`missing`, el `HTTPClient` relanza Playwright para renovar la
   cookie y el UA, y reintenta la petición una vez.
@@ -324,7 +325,7 @@ entorno (la CLI gana en caso de conflicto).
 | `--obfuscation` | Cobertura | none | Lista CSV de codificaciones de ofuscación aplicadas a los payloads |
 | `--request-timeout` | Cobertura | 30 | Timeout HTTP por petición, en segundos |
 | `--scanner-vector-timeout` | Cobertura | 120 | Tope de reloj por scanner y vector antes de cancelar sus payloads; admite `unlimited` |
-| `--cf-clearance-mode` | Sesión | off | Modo del puente cf_clearance para objetivos con capa anti-bot |
+| `--cf-clearance-mode` | Sesión | propagate | Modo del puente cf_clearance / propagación de sesión al fuzzer |
 | `--output` | General | (marca temporal) | Nombre del directorio de salida del escaneo |
 | `--output-base` | General | ./reports | Directorio base donde se crean las carpetas de escaneo |
 | `--log-level` | General | INFO | Verbosidad del registro de ejecución |
@@ -336,8 +337,8 @@ Valores admitidos por las flags de dominio acotado:
 - `--obfuscation`: `none`, `url`, `double_url`, `base64`, `sql_comment`. Cada scanner declara
   cuáles tienen sentido y el conjunto efectivo es la intersección con lo solicitado.
 - `--cf-clearance-mode`: `off` (sin propagación de sesión; 403 en objetivos protegidos),
-  `propagate` (cookies y User-Agent del crawler llegan al fuzzer sin refresco), `refresh`
-  (propagación con refresco reactivo de la cookie).
+  `propagate` (por defecto; cookies y User-Agent del crawler llegan al fuzzer sin refresco),
+  `refresh` (propagación con refresco reactivo de la cookie).
 - `--log-level`: `DEBUG`, `INFO`, `WARNING`, `ERROR`. DEBUG registra cada payload y respuesta.
 - Convención `unlimited`: las flags `--depth`, `--max-pages`, `--max-payloads-per-vector` y
   `--scanner-vector-timeout` aceptan el valor `unlimited` (o `none`/`inf`/`-1`) para eliminar el

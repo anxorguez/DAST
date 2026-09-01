@@ -64,14 +64,15 @@ class Settings(BaseSettings):
 
     # --- Anti-bot / session bridge ------------------------------------
     cf_clearance_mode: str = Field(
-        default="off",
+        default="propagate",
         description=(
             "cf_clearance bridge mode. "
             "'off': no cookies propagated, fuzzer works without session (receives 403 on all "
             "requests against cf-protected targets). "
-            "'propagate': cookies + UA propagated from crawler to fuzzer but no reactive refresh. "
+            "'propagate' (default): cookies + UA propagated from crawler to fuzzer but "
+            "no reactive refresh. "
             "'refresh': cookies + UA propagated AND reactive Playwright refresh on "
-            "X-Cf-Sim-Challenge expired/missing responses (default active bridge behaviour)."
+            "X-Cf-Sim-Challenge expired/missing responses."
         ),
     )
 
