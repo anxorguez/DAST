@@ -5,7 +5,7 @@ from __future__ import annotations
 import click
 
 
-class UnlimitedInt(click.ParamType):
+class UnlimitedInt(click.ParamType[int | None]):
     """Integer accepting "unlimited"/"none"/"inf"/-1 as a sentinel for no cap.
 
     Returns:

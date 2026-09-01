@@ -36,8 +36,8 @@ Requirements: Python 3.12+, Docker, docker compose.
 
 ```bash
 # Clone the repository
-git clone https://github.com/<your-org>/dast-framework.git
-cd dast-framework
+git clone https://github.com/anxorguez/DAST.git
+cd DAST
 
 # Create and activate a virtual environment
 python -m venv .venv

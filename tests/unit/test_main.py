@@ -166,7 +166,7 @@ def test_move_log_to_debug_no_log_cleans_dir(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scanner_vector_timeout_cli_flag_overrides_default() -> None:
+def test_scanner_vector_timeout_cli_flag_overrides_default(tmp_path: Path) -> None:
     """``--scanner-vector-timeout`` propagates into ``Settings``.
 
     Lock the wiring so the per-vector wall clock is reachable from the CLI
@@ -189,6 +189,8 @@ def test_scanner_vector_timeout_cli_flag_overrides_default() -> None:
         runner.invoke(
             main,
             [
+                "--output-base",
+                str(tmp_path),
                 "--url",
                 "http://localhost",
                 "--scanner-vector-timeout",
@@ -204,7 +206,7 @@ def test_scanner_vector_timeout_cli_flag_overrides_default() -> None:
     assert captured.get("scanner_vector_timeout_seconds") == 37
 
 
-def test_obfuscation_cli_flag_propagates_to_settings() -> None:
+def test_obfuscation_cli_flag_propagates_to_settings(tmp_path: Path) -> None:
     """``--obfuscation url,base64`` propagates into ``Settings.obfuscation``."""
     from click.testing import CliRunner
 
@@ -221,6 +223,8 @@ def test_obfuscation_cli_flag_propagates_to_settings() -> None:
         runner.invoke(
             main,
             [
+                "--output-base",
+                str(tmp_path),
                 "--url",
                 "http://localhost",
                 "--obfuscation",

@@ -156,7 +156,7 @@ async def test_pipeline_wires_fuzzer_based_on_cf_clearance_mode(
 # ---------------------------------------------------------------------------
 
 
-def test_cli_cf_clearance_mode_flag_propagates_to_settings() -> None:
+def test_cli_cf_clearance_mode_flag_propagates_to_settings(tmp_path: Path) -> None:
     """``--cf-clearance-mode refresh`` ends up in ``Settings.cf_clearance_mode``."""
     from click.testing import CliRunner
 
@@ -173,6 +173,8 @@ def test_cli_cf_clearance_mode_flag_propagates_to_settings() -> None:
         runner.invoke(
             main,
             [
+                "--output-base",
+                str(tmp_path),
                 "--url",
                 "http://localhost",
                 "--cf-clearance-mode",

@@ -1,240 +1,239 @@
-﻿# DAST Framework
+# DAST Framework
 
-[![Lint](https://github.com/your-org/dast-framework/actions/workflows/lint.yml/badge.svg)](https://github.com/your-org/dast-framework/actions/workflows/lint.yml)
-[![Test](https://github.com/your-org/dast-framework/actions/workflows/test.yml/badge.svg)](https://github.com/your-org/dast-framework/actions/workflows/test.yml)
-[![Docker Build](https://github.com/your-org/dast-framework/actions/workflows/docker-build.yml/badge.svg)](https://github.com/your-org/dast-framework/actions/workflows/docker-build.yml)
+[![Lint](https://github.com/anxorguez/DAST/actions/workflows/lint.yml/badge.svg)](https://github.com/anxorguez/DAST/actions/workflows/lint.yml)
+[![Test](https://github.com/anxorguez/DAST/actions/workflows/test.yml/badge.svg)](https://github.com/anxorguez/DAST/actions/workflows/test.yml)
+[![Docker Build](https://github.com/anxorguez/DAST/actions/workflows/docker-build.yml/badge.svg)](https://github.com/anxorguez/DAST/actions/workflows/docker-build.yml)
 
-A CLI-based Dynamic Application Security Testing framework that automatically detects
-eight classes of web vulnerabilities, including SQL Injection, XSS, Command Injection, SSRF,
-XXE, Insecure Deserialization, Path Traversal, and Open Redirect.
+Framework de Dynamic Application Security Testing (DAST) por línea de comandos que detecta
+automáticamente ocho clases de vulnerabilidades de inyección en aplicaciones web: inyección SQL,
+XSS, inyección de comandos, SSRF, XXE, deserialización insegura, path traversal y open redirect.
 
 ---
 
-## Table of Contents
+## Índice
 
-1. [Overview](#overview)
-2. [Target Application](#target-application)
-3. [Architecture](#architecture)
-4. [Vulnerability Classes](#vulnerability-classes)
-5. [Requirements](#requirements)
-6. [Quick Start](#quick-start)
-7. [Configuration](#configuration)
-8. [Output](#output)
-9. [Running Tests](#running-tests)
+1. [Visión general](#visión-general)
+2. [Aplicación objetivo](#aplicación-objetivo)
+3. [Arquitectura](#arquitectura)
+4. [Clases de vulnerabilidad](#clases-de-vulnerabilidad)
+5. [Requisitos](#requisitos)
+6. [Inicio rápido](#inicio-rápido)
+7. [Configuración](#configuración)
+8. [Salida](#salida)
+9. [Ejecutar los tests](#ejecutar-los-tests)
 10. [CI/CD](#cicd)
-11. [Security](#security)
-12. [Contributing](#contributing)
-13. [License](#license)
+11. [Seguridad](#seguridad)
+12. [Contribuir](#contribuir)
+13. [Licencia](#licencia)
 
 ---
 
-## Overview
+## Visión general
 
-DAST Framework is a Python-based security tool developed as a Master Final Project (TFM).
-It performs black-box injection testing on web applications by dynamically crawling the target,
-identifying injectable parameters, sending attack payloads, and generating a structured
-vulnerability report with CVSS 3.1 scores.
+DAST Framework es una herramienta de seguridad desarrollada en Python como Trabajo de Fin de
+Máster (TFM). Realiza testing de inyección en modo black-box sobre aplicaciones web: rastrea
+dinámicamente el objetivo, identifica los parámetros inyectables, envía payloads de ataque y
+genera un informe de vulnerabilidades estructurado con puntuaciones CVSS 3.1.
 
-Supported vulnerability classes:
+Clases de vulnerabilidad soportadas:
 
-| Class | Techniques | CVSS 3.1 |
+| Clase | Técnicas | CVSS 3.1 |
 |---|---|---|
-| SQL Injection | error-based, UNION-based, blind boolean, time-based | 9.1 / 3.7 |
-| Cross-Site Scripting | reflected, DOM-based, stored (second-pass) | 6.1 / 5.4 |
-| Command Injection | error-based, time-based | 9.8 |
-| SSRF | in-band: cloud metadata, response-size delta | 5.3 |
-| XXE | DTD file read, PHP wrappers, parser error detection | 8.2 |
-| Insecure Deserialization | Java / PHP / Python / .NET malformed objects | 9.8 |
-| Path Traversal | `../` sequences, URL-encoding bypasses, null-byte | 7.5 |
-| Open Redirect | Location header, meta-refresh, JS redirect | 6.1 |
+| Inyección SQL | error-based, UNION-based, blind booleana, time-based | 9.1 / 5.9 |
+| Cross-Site Scripting | reflejado, DOM-based, almacenado (segunda pasada) | 6.1 / 5.4 |
+| Inyección de comandos | error-based, time-based | 9.8 |
+| SSRF | in-band: metadatos cloud, delta de tamaño de respuesta | 5.3 |
+| XXE | lectura de fichero vía DTD, wrappers PHP, error del parser | 8.2 |
+| Deserialización insegura | objetos malformados Java / PHP / Python / .NET | 9.8 |
+| Path Traversal | secuencias `../`, bypass por URL-encoding, null-byte | 7.5 |
+| Open Redirect | cabecera Location, meta-refresh, redirección JS | 6.1 |
 
-The tool has no graphical interface. All interaction is through the command line, and all
-output is written to the filesystem as HTML, JSON, and SQLite files.
+La herramienta no tiene interfaz gráfica. Toda la interacción es por línea de comandos y toda
+la salida se escribe en el sistema de ficheros como HTML, JSON y SQLite.
 
 ---
 
-## Target Application
+## Aplicación objetivo
 
-The framework requires a web application as its scan target. By default it ships with
-DVWA (Damn Vulnerable Web App), which is started automatically as part of the Docker
-Compose environment.
+El framework necesita una aplicación web como objetivo de escaneo. Por defecto se distribuye con
+DVWA (Damn Vulnerable Web App), que se levanta automáticamente como parte del entorno Docker
+Compose.
 
-DVWA is an intentionally vulnerable PHP application designed for practising web security
-testing. Source and documentation: https://github.com/digininja/DVWA
+DVWA es una aplicación PHP intencionadamente vulnerable, diseñada para practicar testing de
+seguridad web. Código y documentación: https://github.com/digininja/DVWA
 
-Default DVWA credentials used by the framework:
+Credenciales por defecto de DVWA utilizadas por el framework:
 
-| Field    | Value    |
+| Campo    | Valor    |
 |----------|----------|
-| Username | admin    |
+| Usuario  | admin    |
 | Password | password |
 
-The security level is set to low by the start.sh script to ensure all vulnerability
-classes are detectable.
+El nivel de seguridad lo fija en `low` el script `start.sh` para garantizar que todas las clases
+de vulnerabilidad sean detectables.
 
-To scan a different application, set TARGET_URL in your .env file before running.
+Para escanear otra aplicación, define `TARGET_URL` en tu fichero `.env` antes de ejecutar.
 
-### Service topology
+### Topología de servicios
 
-The Compose environment exposes three equivalent targets in content but different in
-exposure, plus the scanner itself:
+El entorno de Compose expone tres objetivos equivalentes en contenido pero distintos en
+exposición, además del propio escáner:
 
-| Service       | Internal alias | Host port | Purpose                                  |
-|---------------|----------------|-----------|------------------------------------------|
-| dvwa-origin   | dvwa-origin    | 8080      | Vulnerable target (no filtering)         |
-| dvwa-waf      | dvwa           | 8088      | DVWA + ModSecurity v2 + OWASP CRS PL=1   |
-| cf-sim        | dvwa-cf        | 8089      | cf_clearance challenge simulator         |
-| dast-app      | (n/a)          | (n/a)     | The DAST scanner (run as one-shot)       |
+| Servicio      | Alias interno  | Puerto host | Propósito                                |
+|---------------|----------------|-------------|------------------------------------------|
+| dvwa-origin   | dvwa-origin    | 8080        | Objetivo vulnerable (sin filtrado)       |
+| dvwa-waf      | dvwa           | 8088        | DVWA + ModSecurity v2 + OWASP CRS PL=1   |
+| cf-sim        | dvwa-cf        | 8089        | Simulador del reto cf_clearance          |
+| dast-app      | (n/d)          | (n/d)       | El escáner DAST (ejecución one-shot)     |
 
-`dvwa-origin` (host port 8080) is the clean instance of DVWA, useful as a baseline.
-`dvwa-waf` (host port 8088) is Apache + ModSecurity v2 with the OWASP Core Rule Set in
-front of `dvwa-origin`, and it takes the network alias `dvwa` — so any scan launched
-with `--url http://dvwa` transparently traverses the WAF. `cf-sim` (host port 8089)
-simulates a Cloudflare `cf_clearance` anti-bot challenge in front of `dvwa-origin`,
-under the alias `dvwa-cf`. WAF configuration and exclusions are documented in
-[`infra/modsecurity/README.md`](./infra/modsecurity/README.md); the simulator in
+`dvwa-origin` (puerto host 8080) es la instancia limpia de DVWA, útil como línea base. `dvwa-waf`
+(puerto host 8088) es Apache + ModSecurity v2 con el OWASP Core Rule Set por delante de
+`dvwa-origin`, y toma el alias de red `dvwa` — de modo que cualquier escaneo lanzado con
+`--url http://dvwa` atraviesa el WAF de forma transparente. `cf-sim` (puerto host 8089) simula un
+reto anti-bot `cf_clearance` de Cloudflare por delante de `dvwa-origin`, bajo el alias `dvwa-cf`.
+La configuración del WAF y sus exclusiones se documentan en
+[`infra/modsecurity/README.md`](./infra/modsecurity/README.md); el simulador en
 [`infra/cf-sim/README.md`](./infra/cf-sim/README.md).
 
-| Scan command target            | Goes through                  | Use for                          |
+| Objetivo del comando de escaneo | Pasa a través de              | Sirve para                       |
 |---------------------------------|-------------------------------|----------------------------------|
-| `--url http://dvwa-origin`      | DVWA directly, nothing ahead  | Baseline (no WAF)                |
-| `--url http://dvwa`             | ModSecurity WAF               | Validating `--obfuscation`       |
-| `--url http://dvwa-cf`          | cf_clearance simulator        | Validating the cookie/UA bridge  |
+| `--url http://dvwa-origin`      | DVWA directo, sin nada delante| Línea base (sin WAF)             |
+| `--url http://dvwa`             | WAF ModSecurity               | Validar `--obfuscation`          |
+| `--url http://dvwa-cf`          | Simulador cf_clearance        | Validar el puente cookie/UA      |
 
 ---
 
-## Architecture
+## Arquitectura
 
-The pipeline runs four modules sequentially:
+El pipeline ejecuta cuatro módulos de forma secuencial:
 
 ```
-URL target
+URL objetivo
    |
    v
-[Module 1 - Crawler]
-   Playwright headless Chromium. BFS traversal up to MAX_DEPTH.
-   Intercepts XHR/fetch. Handles optional form-based pre-authentication.
-   Output: list of CrawledPage (url, html, forms, links, xhr_endpoints)
+[Módulo 1 - Crawler]
+   Playwright con Chromium headless. Recorrido BFS hasta MAX_DEPTH.
+   Intercepta XHR/fetch. Gestiona preautenticación opcional por formulario.
+   Salida: lista de CrawledPage (url, html, forms, links, xhr_endpoints)
    |
    v
-[Module 2 - Vector Identification]
-   BeautifulSoup4 + lxml parse each page HTML.
-   Extracts form fields, URL parameters, event handlers.
-   Heuristics assign applicable VulnTypes per field (name, type, enctype,
-   default value). Deduplicates by (url, method, field_name).
-   Output: list of AttackVector
+[Módulo 2 - Identificación de vectores]
+   BeautifulSoup4 + lxml parsean el HTML de cada página.
+   Extrae campos de formulario, parámetros URL, manejadores de eventos.
+   Heurísticas asignan los VulnType aplicables por campo (nombre, tipo, enctype,
+   valor por defecto). Deduplica por (url, método, nombre_de_campo).
+   Salida: lista de AttackVector
    |
    v
-[Module 3 - Fuzzing Engine]  ← CONCURRENT (asyncio.Semaphore)
-   CONCURRENT_VECTORS vectors scanned in parallel.
-   Per vector, CONCURRENT_PAYLOADS payloads tested concurrently.
-   Time-based payloads are always serialised (dedicated asyncio.Lock).
-   Optional rate limiting (REQUESTS_PER_SECOND > 0).
+[Módulo 3 - Motor de fuzzing]  ← CONCURRENTE (asyncio.Semaphore)
+   CONCURRENT_VECTORS vectores escaneados en paralelo.
+   Por vector, CONCURRENT_PAYLOADS payloads probados concurrentemente.
+   Los payloads time-based se serializan siempre (asyncio.Lock dedicado).
+   Rate limiting opcional (REQUESTS_PER_SECOND > 0).
    Scanners:
-     SQLiScanner           - error patterns, time delta, UNION markers
-     XSSScanner            - payload reflection, DOM-based check
-     CMDiScanner           - OS output patterns, time delta
-     SSRFScanner           - cloud metadata patterns, response-size delta
-     XXEScanner            - DTD entity resolution, parser errors
-     DeserializationScanner - exception patterns, HTTP 500 correlation
-     PathTraversalScanner  - system file content patterns, FS errors
-     OpenRedirectScanner   - Location header, meta-refresh, JS redirect
-   3 retries per payload. Finding confirmed at ≥2/3.
-   After fuzzing: second crawl pass for stored XSS detection.
-   Output: list of RawFinding
+     SQLiScanner            - patrones de error, delta temporal, marcadores UNION
+     XSSScanner             - reflexión del payload, comprobación DOM-based
+     CMDiScanner            - patrones de salida del SO, delta temporal
+     SSRFScanner            - patrones de metadatos cloud, delta de tamaño de respuesta
+     XXEScanner             - resolución de entidad DTD, errores del parser
+     DeserializationScanner - patrones de excepción, correlación con HTTP 500
+     PathTraversalScanner   - patrones de contenido de ficheros del sistema, errores de FS
+     OpenRedirectScanner    - cabecera Location, meta-refresh, redirección JS
+   Reintentos por payload. Hallazgo confirmado al repetirse la detección.
+   Tras el fuzzing: segunda pasada del crawler para detectar XSS almacenado.
+   Salida: lista de RawFinding
    |
    v
-[Module 4 - Analysis and Reporting]
-   Validator deduplicates and applies confirmation threshold.
-   SeverityScorer: maps each finding → CVSSVector via cvss_mapper,
-     calculates CVSS 3.1 Base Score, derives severity from numeric bands.
-   ReportGenerator writes findings.db (SQLite), report.json, report.html.
-   All outputs include cvss_vector_string (e.g. CVSS:3.1/AV:N/AC:L/...).
-   Output: ScanReport + files in reports/<scan_id>/
+[Módulo 4 - Análisis e informe]
+   Validator normaliza y enriquece los hallazgos.
+   SeverityScorer: mapea cada hallazgo → CVSSVector vía cvss_mapper,
+     calcula el CVSS 3.1 Base Score y deriva la severidad de las bandas numéricas.
+   ReportGenerator escribe findings.db (SQLite), report.json, report.html.
+   Todas las salidas incluyen cvss_vector_string (p.ej. CVSS:3.1/AV:N/AC:L/...).
+   Salida: ScanReport + ficheros en reports/<scan_id>/
 ```
 
-### Anti-bot challenges (cf_clearance bridge)
+### Retos anti-bot (puente cf_clearance)
 
-Some real-world targets sit behind an anti-bot layer such as Cloudflare, which issues
-a `cf_clearance` cookie only after a JavaScript challenge that a plain HTTP client
-cannot solve. The framework's crawler runs a real browser (Playwright) and *can* solve
-such challenges; the fuzzer uses `httpx` and cannot. The **cf_clearance bridge** closes
-that gap: the crawler captures both the session cookies *and* the `User-Agent` from its
-authenticated `BrowserContext`, and the pipeline propagates them to the `HTTPClient`
-the fuzzer builds. Propagating the `User-Agent` matters because the challenge cookie is
-bound to the UA that requested it — sending the fuzzer's default `httpx` UA would
-invalidate the clearance.
+Algunos objetivos reales se sitúan tras una capa anti-bot como Cloudflare, que emite una cookie
+`cf_clearance` solo tras un reto JavaScript que un cliente HTTP plano no puede resolver. El
+crawler del framework ejecuta un navegador real (Playwright) y *sí* puede resolver estos retos;
+el fuzzer usa `httpx` y no puede. El **puente cf_clearance** cierra esa brecha: el crawler
+captura tanto las cookies de sesión *como* el `User-Agent` de su `BrowserContext` autenticado, y
+el pipeline los propaga al `HTTPClient` que construye el fuzzer. Propagar el `User-Agent` importa
+porque la cookie del reto está ligada al UA que la solicitó — enviar el UA por defecto de `httpx`
+invalidaría la clearance.
 
-The behaviour is selected with `--cf-clearance-mode` (or `CF_CLEARANCE_MODE`):
+El comportamiento se selecciona con `--cf-clearance-mode` (o `CF_CLEARANCE_MODE`):
 
-- `off` (default): no cookie or UA propagation — the fuzzer runs with its own
-  session and will receive 403 on every request to a cf-protected target.
-- `propagate`: the crawler's cookies and User-Agent are pushed to the fuzzer's
-  `HTTPClient`, but no reactive refresh is performed.
-- `refresh`: propagation **plus** a reactive refresh — when an upstream answers
-  with `X-Cf-Sim-Challenge: expired`/`missing`, the `HTTPClient` re-launches
-  Playwright to renew the cookie and UA, then retries the request once.
+- `off` (por defecto): sin propagación de cookie ni UA — el fuzzer usa su propia sesión y
+  recibirá 403 en cada petición a un objetivo protegido por cf.
+- `propagate`: las cookies y el User-Agent del crawler se empujan al `HTTPClient` del fuzzer,
+  pero sin refresco reactivo.
+- `refresh`: propagación **más** refresco reactivo — cuando un upstream responde con
+  `X-Cf-Sim-Challenge: expired`/`missing`, el `HTTPClient` relanza Playwright para renovar la
+  cookie y el UA, y reintenta la petición una vez.
 
-The `cf-sim` service (see Service topology) is a local fixture that implements
-this contract for testing.
+El servicio `cf-sim` (ver Topología de servicios) es un fixture local que implementa este
+contrato para las pruebas.
 
 ---
 
-## Vulnerability Classes
+## Clases de vulnerabilidad
 
-| VulnType | Scanner | Detection technique | Typical CVSS |
+| VulnType | Scanner | Técnica de detección | CVSS típico |
 |---|---|---|---|
-| `sqli` | SQLiScanner | SQL error patterns, UNION marker, time-based delay | 9.1 / 3.7 |
-| `xss` | XSSScanner | Payload reflection (verbatim + partial), exec patterns | 6.1 / 5.4 |
-| `cmdi` | CMDiScanner | OS command output patterns, time-based delay | 9.8 |
-| `ssrf` | SSRFScanner | Cloud metadata content, response size difference | 5.3 |
-| `xxe` | XXEScanner | File content reflection, XML parser errors | 8.2 |
-| `deserialization` | DeserializationScanner | Deser exception messages, HTTP 500 + serialised payload | 9.8 |
-| `path_traversal` | PathTraversalScanner | `/etc/passwd` / `win.ini` content, FS error strings | 7.5 |
-| `open_redirect` | OpenRedirectScanner | 3xx Location header, meta-refresh, JS `window.location` | 6.1 |
+| `sqli` | SQLiScanner | patrones de error SQL, marcador UNION, retardo time-based | 9.1 / 5.9 |
+| `xss` | XSSScanner | reflexión del payload (literal + parcial), patrones de ejecución | 6.1 / 5.4 |
+| `cmdi` | CMDiScanner | patrones de salida de comando del SO, retardo time-based | 9.8 |
+| `ssrf` | SSRFScanner | contenido de metadatos cloud, diferencia de tamaño de respuesta | 5.3 |
+| `xxe` | XXEScanner | reflexión del contenido de fichero, errores del parser XML | 8.2 |
+| `deserialization` | DeserializationScanner | mensajes de excepción de deser., HTTP 500 + payload serializado | 9.8 |
+| `path_traversal` | PathTraversalScanner | contenido de `/etc/passwd` / `win.ini`, errores de FS | 7.5 |
+| `open_redirect` | OpenRedirectScanner | cabecera Location 3xx, meta-refresh, `window.location` JS | 6.1 |
 
-VulnType heuristics (field name → scanner):
+Heurísticas de VulnType (nombre del campo → scanner):
 
 - **SSRF**: url, endpoint, api, webhook, proxy, fetch, load, src, href, callback
 - **Path Traversal**: file, filename, path, template, include, dir, download, read, load
 - **Open Redirect**: url, redirect, next, return, goto, target, destination, redir, continue
 - **CMDi**: cmd, command, exec, execute, shell, ping, host, ip, file, filename, path
-- **XXE**: only when form enctype is `application/xml` / `text/xml`
-- **Deserialization**: only when default field value resembles serialised data (base64/`O:`/`rO0AB`)
+- **XXE**: solo cuando el enctype del formulario es `application/xml` / `text/xml`
+- **Deserialización**: solo cuando el valor por defecto del campo parece un dato serializado (base64/`O:`/`rO0AB`)
 
 ---
 
-## Requirements
+## Requisitos
 
 - Docker >= 24
-- docker compose >= 2.20 (the docker compose subcommand, not docker-compose)
-- Bash >= 4 (for start.sh and stop.sh)
+- docker compose >= 2.20 (el subcomando `docker compose`, no `docker-compose`)
+- Bash >= 4 (para `start.sh` y `stop.sh`)
 
-No Python installation is required on the host. Everything runs inside containers.
+No se requiere instalar Python en el host. Todo se ejecuta dentro de contenedores.
 
 ---
 
-## Quick Start
+## Inicio rápido
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-org/dast-framework.git
-cd dast-framework
+# 1. Clonar el repositorio
+git clone https://github.com/anxorguez/DAST.git
+cd DAST
 
-# 2. Copy the environment template
+# 2. Copiar la plantilla de entorno
 cp .env.example .env
 
-# 3. Start the backend, WAF and cf-sim, and wait for them to be ready
+# 3. Levantar el backend, el WAF y el cf-sim, y esperar a que estén listos
 ./start.sh
 
-# 4a. Baseline scan against DVWA WITHOUT the WAF (v3-style)
+# 4a. Escaneo de línea base contra DVWA SIN el WAF
 docker compose run --rm dast-app --url http://dvwa-origin \
     --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
     --depth 3 --max-pages 100 --max-payloads-per-vector 50 \
     --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
     --request-timeout 30
 
-# 4b. Scan against DVWA THROUGH the ModSecurity WAF, exercising --obfuscation
+# 4b. Escaneo contra DVWA A TRAVÉS del WAF ModSecurity, ejercitando --obfuscation
 docker compose run --rm dast-app --url http://dvwa \
     --obfuscation none,double_url,base64 \
     --concurrent-vectors 5 --concurrent-payloads 10 --requests-per-second 0 \
@@ -242,56 +241,55 @@ docker compose run --rm dast-app --url http://dvwa \
     --payload-types sqli,xss,cmdi,ssrf,xxe,deserialization,path_traversal,open_redirect \
     --request-timeout 30
 
-# 5. Find your report in ./reports/outputs/<scan_id>/
+# 5. Encuentra tu informe en ./reports/outputs/<scan_id>/
 ls reports/outputs/
 ```
 
 ---
 
-## Configuration
+## Configuración
 
-All settings are read from environment variables (.env file or shell environment).
+Todos los ajustes se leen de variables de entorno (fichero `.env` o entorno del shell).
 
-| Variable                  | Default                                      | Description                                         |
+| Variable                  | Defecto                                      | Descripción                                         |
 |---------------------------|----------------------------------------------|-----------------------------------------------------|
-| TARGET_URL                | http://dvwa                                  | URL of the application to scan                      |
-| OUTPUT_DIR                | /app/reports                                 | Output directory inside the container               |
-| LOG_LEVEL                 | INFO                                         | Log level: DEBUG, INFO, WARNING, ERROR              |
-| MAX_DEPTH                 | 3                                            | Maximum BFS crawling depth                          |
-| MAX_PAGES                 | 100                                          | Maximum number of pages to visit                    |
-| REQUEST_TIMEOUT           | 30                                           | HTTP request timeout in seconds                     |
-| CONCURRENT_PAGES          | 5                                            | Pages processed concurrently by Playwright          |
-| AUTH_ENABLED              | false                                        | Enable pre-scan form-based login                    |
-| AUTH_URL                  | (empty)                                      | Login form URL                                      |
-| AUTH_USERNAME             | (empty)                                      | Username to submit in the login form                |
-| AUTH_PASSWORD             | (empty)                                      | Password to submit in the login form                |
-| AUTH_USERNAME_FIELD       | username                                     | name attribute of the username input                |
-| AUTH_PASSWORD_FIELD       | password                                     | name attribute of the password input                |
-| AUTH_SUCCESS_URL          | (empty)                                      | URL to verify successful login redirect             |
-| PAYLOAD_TYPES             | sqli,xss,cmdi,ssrf,xxe,deserialization,…     | Comma-separated list of enabled vulnerability types |
-| MAX_PAYLOADS_PER_VECTOR   | 50                                           | Maximum payloads tested per attack vector           |
-| CONCURRENT_VECTORS        | 5                                            | Number of vectors fuzzed concurrently               |
-| CONCURRENT_PAYLOADS       | 10                                           | Payloads tested in parallel per scanner             |
-| REQUESTS_PER_SECOND       | 0                                            | Rate limit (0 = unlimited)                          |
-| CF_CLEARANCE_MODE         | off                                          | cf_clearance bridge mode: off / propagate / refresh |
-| DVWA_SECURITY_LEVEL       | low                                          | DVWA security level for integration tests           |
-| DVWA_USERNAME             | admin                                        | DVWA login username                                 |
-| DVWA_PASSWORD             | password                                     | DVWA login password                                 |
+| TARGET_URL                | http://dvwa                                  | URL de la aplicación a escanear                     |
+| OUTPUT_DIR                | /app/reports                                 | Directorio de salida dentro del contenedor          |
+| LOG_LEVEL                 | INFO                                         | Nivel de log: DEBUG, INFO, WARNING, ERROR           |
+| MAX_DEPTH                 | 3                                            | Profundidad máxima del crawling BFS                 |
+| MAX_PAGES                 | 100                                          | Número máximo de páginas a visitar                  |
+| REQUEST_TIMEOUT           | 30                                           | Timeout de petición HTTP en segundos                |
+| CONCURRENT_PAGES          | 5                                            | Páginas procesadas concurrentemente por Playwright  |
+| AUTH_ENABLED              | false                                        | Habilita el login por formulario previo al escaneo  |
+| AUTH_URL                  | (vacío)                                      | URL del formulario de login                         |
+| AUTH_USERNAME             | (vacío)                                      | Usuario a enviar en el formulario de login          |
+| AUTH_PASSWORD             | (vacío)                                      | Password a enviar en el formulario de login         |
+| AUTH_USERNAME_FIELD       | username                                     | atributo name del input de usuario                  |
+| AUTH_PASSWORD_FIELD       | password                                     | atributo name del input de password                 |
+| AUTH_SUCCESS_URL          | (vacío)                                      | URL para verificar el redirect de login correcto    |
+| PAYLOAD_TYPES             | sqli,xss,cmdi,ssrf,xxe,deserialization,…     | Lista CSV de clases de vulnerabilidad activas       |
+| MAX_PAYLOADS_PER_VECTOR   | 50                                           | Máximo de payloads probados por vector de ataque    |
+| CONCURRENT_VECTORS        | 5                                            | Número de vectores fuzzeados concurrentemente       |
+| CONCURRENT_PAYLOADS       | 10                                           | Payloads probados en paralelo por scanner           |
+| REQUESTS_PER_SECOND       | 0                                            | Límite de peticiones (0 = sin límite)               |
+| CF_CLEARANCE_MODE         | off                                          | Modo del puente cf_clearance: off / propagate / refresh |
+| DVWA_SECURITY_LEVEL       | low                                          | Nivel de seguridad de DVWA para los tests de integración |
+| DVWA_USERNAME             | admin                                        | Usuario de login de DVWA                            |
+| DVWA_PASSWORD             | password                                     | Password de login de DVWA                           |
 
-CLI flags always take priority over environment variables and built-in defaults.
+Los flags de la CLI siempre tienen prioridad sobre las variables de entorno y los valores por defecto.
 
-### Authenticating against DVWA
+### Autenticación contra DVWA
 
-DVWA redirects every page to `login.php` until a session cookie is set, so a scan
-with `AUTH_ENABLED=false` will only fuzz the login form and will not reach any of
-the vulnerable endpoints (sqli, xss_r, xss_s, exec, file_inclusion, ...). A
-warning is logged when the crawl stops at a single login page without auth
-enabled.
+DVWA redirige cada página a `login.php` hasta que se establece una cookie de sesión, de modo que
+un escaneo con `AUTH_ENABLED=false` solo fuzzeará el formulario de login y no alcanzará ninguno de
+los endpoints vulnerables (sqli, xss_r, xss_s, exec, file_inclusion, ...). Se registra un aviso
+cuando el crawl se detiene en una única página de login sin autenticación habilitada.
 
-To scan DVWA properly, add the following block to your `.env`:
+Para escanear DVWA correctamente, añade el siguiente bloque a tu `.env`:
 
 ```env
-# --- Authentication against DVWA ---
+# --- Autenticación contra DVWA ---
 AUTH_ENABLED=true
 AUTH_URL=http://dvwa/login.php
 AUTH_USERNAME=admin
@@ -301,89 +299,116 @@ AUTH_PASSWORD_FIELD=password
 AUTH_SUCCESS_URL=http://dvwa/index.php
 ```
 
-With these values the crawler logs in once before the BFS begins, reuses the
-`PHPSESSID` cookie for every subsequent request, and is able to discover and
-fuzz the vulnerable pages: `/vulnerabilities/sqli/?id=...`,
-`/vulnerabilities/xss_r/?name=...`, `/vulnerabilities/xss_s/`,
-`/vulnerabilities/exec/`, `/vulnerabilities/fi/?page=...`, and others.
+Con estos valores el crawler inicia sesión una vez antes de empezar el BFS, reutiliza la cookie
+`PHPSESSID` en cada petición posterior, y es capaz de descubrir y fuzzear las páginas vulnerables:
+`/vulnerabilities/sqli/?id=...`, `/vulnerabilities/xss_r/?name=...`, `/vulnerabilities/xss_s/`,
+`/vulnerabilities/exec/`, `/vulnerabilities/fi/?page=...`, y otras.
 
-### Tuning parameters
+### Parámetros de tuning
 
-Eight tuning knobs are exposed directly on the CLI, split between two groups
-with very different semantics. Each flag can also be set via its environment
-variable (CLI wins on conflict).
+El comportamiento del framework se controla íntegramente desde la línea de comandos. La tabla
+siguiente recoge el conjunto completo de flags disponibles, agrupadas por su función, junto con su
+valor por defecto. Cada flag de velocidad y cobertura puede fijarse también por su variable de
+entorno (la CLI gana en caso de conflicto).
+
+| Flag | Grupo | Defecto | Descripción |
+|------|-------|---------|-------------|
+| `--url` | General | (obligatorio) | URL del objetivo a escanear |
+| `--concurrent-vectors` | Velocidad | 5 | Vectores de ataque fuzzeados en paralelo; cambia la rapidez, no lo que se prueba |
+| `--concurrent-payloads` | Velocidad | 10 | Payloads probados en paralelo dentro de cada scanner |
+| `--requests-per-second` | Velocidad | 0 | Límite global de peticiones/s compartido por todos los scanners (0 = sin límite) |
+| `--depth` | Cobertura | 3 | Profundidad máxima de la búsqueda BFS del crawler; admite `unlimited` |
+| `--max-pages` | Cobertura | 100 | Tope absoluto de páginas rastreadas; admite `unlimited` |
+| `--max-payloads-per-vector` | Cobertura | 50 | Máximo de payloads por vector y scanner; palanca dominante del coste. Admite `unlimited` |
+| `--payload-types` | Cobertura | (las 8 clases) | Lista CSV de las clases de scanner activas |
+| `--obfuscation` | Cobertura | none | Lista CSV de codificaciones de ofuscación aplicadas a los payloads |
+| `--request-timeout` | Cobertura | 30 | Timeout HTTP por petición, en segundos |
+| `--scanner-vector-timeout` | Cobertura | 120 | Tope de reloj por scanner y vector antes de cancelar sus payloads; admite `unlimited` |
+| `--cf-clearance-mode` | Sesión | off | Modo del puente cf_clearance para objetivos con capa anti-bot |
+| `--output` | General | (marca temporal) | Nombre del directorio de salida del escaneo |
+| `--output-base` | General | ./reports | Directorio base donde se crean las carpetas de escaneo |
+| `--log-level` | General | INFO | Verbosidad del registro de ejecución |
+
+Valores admitidos por las flags de dominio acotado:
+
+- `--payload-types`: `sqli`, `xss`, `cmdi`, `ssrf`, `xxe`, `deserialization`, `path_traversal`,
+  `open_redirect`. Cada valor activa el scanner de esa clase; por defecto se activan las ocho.
+- `--obfuscation`: `none`, `url`, `double_url`, `base64`, `sql_comment`. Cada scanner declara
+  cuáles tienen sentido y el conjunto efectivo es la intersección con lo solicitado.
+- `--cf-clearance-mode`: `off` (sin propagación de sesión; 403 en objetivos protegidos),
+  `propagate` (cookies y User-Agent del crawler llegan al fuzzer sin refresco), `refresh`
+  (propagación con refresco reactivo de la cookie).
+- `--log-level`: `DEBUG`, `INFO`, `WARNING`, `ERROR`. DEBUG registra cada payload y respuesta.
+- Convención `unlimited`: las flags `--depth`, `--max-pages`, `--max-payloads-per-vector` y
+  `--scanner-vector-timeout` aceptan el valor `unlimited` (o `none`/`inf`/`-1`) para eliminar el
+  tope correspondiente.
 
 #### Velocidad / huella
 
-These flags control **how many requests run in parallel and at what rate**.
-They do NOT change what is tested, only how fast and how visible the scan is
-to the target's logs/IDS.
+Estas flags controlan **cuántas peticiones se ejecutan en paralelo y a qué ritmo**. NO cambian lo
+que se prueba, solo la rapidez y lo visible que es el escaneo para los logs/IDS del objetivo.
 
-| CLI flag                | Env var                | Default | Description                                       |
+| Flag CLI                | Variable de entorno    | Defecto | Descripción                                       |
 |-------------------------|------------------------|---------|---------------------------------------------------|
-| `--concurrent-vectors`  | `CONCURRENT_VECTORS`   | 5       | Vectors fuzzed in parallel                        |
-| `--concurrent-payloads` | `CONCURRENT_PAYLOADS`  | 10      | Payloads tested in parallel per scanner           |
-| `--requests-per-second` | `REQUESTS_PER_SECOND`  | 0       | Global rate limit applied across ALL scanners (0 = unlimited) |
+| `--concurrent-vectors`  | `CONCURRENT_VECTORS`   | 5       | Vectores fuzzeados en paralelo                    |
+| `--concurrent-payloads` | `CONCURRENT_PAYLOADS`  | 10      | Payloads probados en paralelo por scanner         |
+| `--requests-per-second` | `REQUESTS_PER_SECOND`  | 0       | Límite global aplicado a TODOS los scanners (0 = sin límite) |
 
-**Note**: `--requests-per-second` is a single shared limiter — the configured
-rate is the *combined* outbound rate across every scanner and vector, not a
-per-scanner rate.
+**Nota**: `--requests-per-second` es un único limitador compartido — el ritmo configurado es la
+tasa de salida *combinada* de todos los scanners y vectores, no una tasa por scanner.
 
 #### Cobertura / alcance
 
-These flags control **what parts of the target are explored and how
-thoroughly**. They are the levers that change the number of findings.
+Estas flags controlan **qué partes del objetivo se exploran y con qué exhaustividad**. Son las
+palancas que cambian el número de hallazgos.
 
-| CLI flag                     | Env var                  | Default | Description                                         |
+| Flag CLI                     | Variable de entorno      | Defecto | Descripción                                         |
 |------------------------------|--------------------------|---------|-----------------------------------------------------|
-| `--depth`                    | `MAX_DEPTH`              | 3       | Maximum BFS depth followed by the crawler           |
-| `--max-pages`                | `MAX_PAGES`              | 100     | Hard cap on pages crawled                           |
-| `--max-payloads-per-vector`  | `MAX_PAYLOADS_PER_VECTOR`| 50      | Max payloads per (vector × scanner). Dominant lever |
-| `--payload-types`            | `PAYLOAD_TYPES`          | (all 8) | CSV of active scanner classes                       |
-| `--request-timeout`          | `REQUEST_TIMEOUT`        | 30      | HTTP request timeout in seconds                     |
+| `--depth`                    | `MAX_DEPTH`              | 3       | Profundidad máxima del BFS del crawler              |
+| `--max-pages`                | `MAX_PAGES`              | 100     | Tope duro de páginas rastreadas                     |
+| `--max-payloads-per-vector`  | `MAX_PAYLOADS_PER_VECTOR`| 50      | Máx. payloads por (vector × scanner). Palanca dominante |
+| `--payload-types`            | `PAYLOAD_TYPES`          | (las 8) | CSV de clases de scanner activas                    |
+| `--request-timeout`          | `REQUEST_TIMEOUT`        | 30      | Timeout de petición HTTP en segundos                |
 
-`--payload-types` accepts any combination of: `sqli`, `xss`, `cmdi`, `ssrf`,
-`xxe`, `deserialization`, `path_traversal`, `open_redirect`.
+#### Combinaciones recomendadas
 
-#### Recommended combinations
+Las columnas de abajo reproducen los estilos de escaneo mínimo/equilibrado/agresivo/sigiloso,
+expresados en términos de las flags.
 
-The three columns below reproduce the behaviour of the legacy
-default/aggressive/stealth profiles, now expressed in terms of the eight flags.
+| Estilo         | cv | cp | rps | depth | páginas | mppv | payload-types  |
+|----------------|----|----|-----|-------|---------|------|----------------|
+| **mínimo**     | 1  | 1  | 1   | 1     | 5       | 5    | sqli           |
+| **equilibrado**| 5  | 10 | 0   | 3     | 100     | 50   | (las 8)        |
+| **agresivo**   | 10 | 20 | 0   | 5     | 500     | 200  | (las 8)        |
+| **sigiloso**   | 2  | 3  | 5   | 2     | 50      | 20   | (las 8)        |
 
-| Style          | cv | cp | rps | depth | pages | mppv | payload-types  |
-|----------------|----|----|-----|-------|-------|------|----------------|
-| **minimal**    | 1  | 1  | 1   | 1     | 5     | 5    | sqli           |
-| **balanced**   | 5  | 10 | 0   | 3     | 100   | 50   | (all 8)        |
-| **aggressive** | 10 | 20 | 0   | 5     | 500   | 200  | (all 8)        |
-| **stealth**    | 2  | 3  | 5   | 2     | 50    | 20   | (all 8)        |
-
-The HTML and JSON reports include an "Effective Configuration" block dumping
-every Settings field used for the run, so the analyst can verify exactly which
-combination produced the findings.
+Los informes HTML y JSON incluyen un bloque "Effective Configuration" que vuelca cada campo de
+Settings usado en la ejecución, de modo que el analista puede verificar exactamente qué
+combinación produjo los hallazgos.
 
 ---
 
-## Output
+## Salida
 
-Each scan creates a uniquely named folder under reports/:
+Cada escaneo crea una carpeta con nombre único bajo `reports/`:
 
 ```
 reports/
 +-- 20250315_142301_3f9a1c2b/
-    +-- findings.db     SQLite database with all validated findings
-    +-- report.html     Full HTML report rendered from Jinja2 template
-    +-- report.json     Machine-readable report (same data as HTML)
-    +-- scan.log        Complete Loguru log for this scan session
+    +-- findings.db     Base de datos SQLite con todos los hallazgos validados
+    +-- report.html     Informe HTML completo renderizado desde plantilla Jinja2
+    +-- report.json     Informe legible por máquina (mismos datos que el HTML)
+    +-- scan.log        Log completo de esta sesión de escaneo
 ```
 
-The reports/ directory is excluded from version control (.gitignore).
-Only reports/.gitkeep is committed.
+El directorio `reports/` está excluido del control de versiones (`.gitignore`). Solo se versiona
+`reports/outputs/.gitkeep`.
 
 ---
 
-## Running Tests
+## Ejecutar los tests
 
-Install development dependencies first (or use the Docker environment):
+Instala primero las dependencias de desarrollo (o usa el entorno Docker):
 
 ```bash
 python -m venv .venv
@@ -392,13 +417,13 @@ pip install -r requirements-dev.txt
 playwright install chromium
 ```
 
-Run unit tests (no external services needed):
+Ejecuta los tests unitarios (no necesitan servicios externos):
 
 ```bash
 pytest tests/unit/ -v --cov=src --cov-report=term-missing
 ```
 
-Run integration tests against DVWA (requires ./start.sh to have been run first):
+Ejecuta los tests de integración contra DVWA (requiere haber ejecutado `./start.sh` antes):
 
 ```bash
 pytest tests/integration/ -v -m integration
@@ -408,33 +433,35 @@ pytest tests/integration/ -v -m integration
 
 ## CI/CD
 
-Three GitHub Actions workflows run on every push and pull request to main:
+Tres workflows de GitHub Actions se ejecutan en cada push y pull request a `main`:
 
-| Workflow     | File                                    | What it does                                               |
+| Workflow     | Fichero                                 | Qué hace                                                   |
 |--------------|-----------------------------------------|------------------------------------------------------------|
 | Lint         | .github/workflows/lint.yml              | ruff check, ruff format check, mypy strict                |
-| Test         | .github/workflows/test.yml              | Spins up DVWA, runs unit + integration tests, uploads coverage |
-| Docker Build | .github/workflows/docker-build.yml      | Builds multi-arch image, pushes to GHCR on tag/main       |
+| Test         | .github/workflows/test.yml              | Levanta DVWA, ejecuta tests unitarios + integración, sube coverage |
+| Docker Build | .github/workflows/docker-build.yml      | Construye imagen multi-arch, la publica en GHCR en tag/main |
 
 ---
 
-## Security
+## Seguridad
 
-Vulnerability reports for the framework itself must be submitted via GitHub Security
-Advisories. See SECURITY.md for the full policy and response SLA.
+Los reportes de vulnerabilidad del propio framework deben enviarse mediante GitHub Security
+Advisories. Consulta `SECURITY.md` para la política completa y el SLA de respuesta.
 
-This tool is designed exclusively for use against applications you own or have explicit
-written permission to test. Unauthorised use against third-party systems may violate
-applicable laws. The authors accept no liability for misuse.
-
----
-
-## Contributing
-
-See CONTRIBUTING.md for the development setup, code conventions, and pull request process.
+Esta herramienta está diseñada exclusivamente para usarse contra aplicaciones que poseas o para
+las que tengas permiso escrito explícito de testing. El uso no autorizado contra sistemas de
+terceros puede violar la legislación aplicable. Los autores no aceptan responsabilidad alguna por
+un mal uso.
 
 ---
 
-## License
+## Contribuir
 
-MIT License. See LICENSE for the full text.
+Consulta `CONTRIBUTING.md` para el entorno de desarrollo, las convenciones de código y el proceso
+de pull request.
+
+---
+
+## Licencia
+
+Licencia MIT. Consulta `LICENSE` para el texto completo.
